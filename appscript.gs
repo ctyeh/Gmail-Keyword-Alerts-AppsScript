@@ -163,6 +163,22 @@ function processMessage(message, subject) {
   if (USE_GEMINI_API) {
     Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
     aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
+    
+    // 將情緒分析結果存儲到 Properties 服務
+    if (aiAnalysisResult) {
+      // 使用日期和郵件ID作為唯一鍵
+      const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+      const propKey = today + "_email_" + message.getId();
+      
+      try {
+        // 存儲情緒分析結果
+        PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify(aiAnalysisResult));
+        Logger.log(`已將情緒分析結果存儲到 Properties 服務 - 郵件ID: ${message.getId()}`);
+      } catch (error) {
+        Logger.log(`存儲情緒分析結果時出錯：${error.toString()} - 郵件ID: ${message.getId()}`);
+      }
+    }
+    
     // 如果 AI 分析發現值得通知的內容，也發送通知
     if (aiAnalysisResult && aiAnalysisResult.shouldNotify && foundKeywords.length === 0) {
       foundKeywords.push("AI 檢測到需注意內容");
@@ -581,6 +597,310 @@ function truncateBody(text, maxLength) {
   return text.substring(0, maxLength) + "...";
 }
 
+//========== 每日統計功能 ==========//
+
+/**
+ * 每日郵件統計與關鍵字報告
+ * 搭配 Properties 服務存儲當日郵件情緒分析結果
+ */
+function dailyStatisticsReport() {
+  // 獲取今天的日期
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  Logger.log(`開始生成 ${today} 日統計報告`);
+  
+  // 統計基本數據
+  const stats = {
+    totalEmails: countCheckedEmails(),
+    keywordTriggeredEmails: countKeywordTriggeredEmails(),
+    positiveEmotions: 0,
+    negativeEmotions: 0,
+    neutralEmotions: 0,
+    problemDetected: 0
+  };
+  
+  // 從 Properties 服務獲取情緒分析數據
+  const emotionStats = getEmotionStatsFromProperties();
+  stats.positiveEmotions = emotionStats.positive;
+  stats.negativeEmotions = emotionStats.negative;
+  stats.neutralEmotions = emotionStats.neutral;
+  stats.problemDetected = emotionStats.problemDetected;
+  
+  // 使用 Gemini API 生成分析摘要
+  let aiSummary = "AI 未能生成分析摘要。";
+  if (USE_GEMINI_API) {
+    aiSummary = generateDailySummaryWithGemini(stats);
+  }
+  
+  // 發送統計數據到 Slack
+  sendDailyStatisticsToSlack(stats, aiSummary);
+  
+  Logger.log(`${today} 日統計報告已完成並發送到 Slack`);
+}
+
+/**
+ * 統計檢查過的郵件數量
+ */
+function countCheckedEmails() {
+  // 獲取帶有「已檢查」標籤且日期是今天的郵件
+  const today = new Date();
+  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  const query = `label:${CHECKED_LABEL} after:${formattedDate}`;
+  
+  try {
+    const threads = GmailApp.search(query);
+    let messageCount = 0;
+    
+    // 計算所有討論串中的郵件數量
+    for (const thread of threads) {
+      messageCount += thread.getMessageCount();
+    }
+    
+    Logger.log(`找到 ${messageCount} 封今天檢查過的郵件`);
+    return messageCount;
+  } catch (error) {
+    Logger.log(`計算檢查郵件時出錯：${error.toString()}`);
+    return 0;
+  }
+}
+
+/**
+ * 統計觸發關鍵字的郵件數量
+ */
+function countKeywordTriggeredEmails() {
+  // 獲取帶有「已通知到Slack」標籤且日期是今天的郵件
+  const today = new Date();
+  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  const query = `label:${NOTIFIED_LABEL} after:${formattedDate}`;
+  
+  try {
+    const threads = GmailApp.search(query);
+    let messageCount = 0;
+    
+    // 計算所有討論串中的郵件數量
+    for (const thread of threads) {
+      messageCount += thread.getMessageCount();
+    }
+    
+    Logger.log(`找到 ${messageCount} 封今天觸發關鍵字的郵件`);
+    return messageCount;
+  } catch (error) {
+    Logger.log(`計算關鍵字郵件時出錯：${error.toString()}`);
+    return 0;
+  }
+}
+
+/**
+ * 從 Properties 服務獲取情緒統計數據
+ */
+function getEmotionStatsFromProperties() {
+  const stats = {
+    positive: 0,
+    negative: 0,
+    neutral: 0,
+    problemDetected: 0
+  };
+  
+  try {
+    // 獲取所有帶有今天日期前綴的屬性
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const props = PropertiesService.getScriptProperties().getProperties();
+    
+    // 遍歷屬性並統計情緒數據
+    for (const key in props) {
+      if (key.startsWith(today + "_email_")) {
+        try {
+          const aiAnalysisResult = JSON.parse(props[key]);
+          
+          // 統計情緒類型
+          if (aiAnalysisResult.sentiment === "positive") {
+            stats.positive++;
+          } else if (aiAnalysisResult.sentiment === "negative") {
+            stats.negative++;
+          } else {
+            stats.neutral++;
+          }
+          
+          // 統計檢測到問題的數量
+          if (aiAnalysisResult.problemDetected) {
+            stats.problemDetected++;
+          }
+        } catch (parseError) {
+          Logger.log(`解析情緒數據時出錯：${parseError.toString()}`);
+        }
+      }
+    }
+    
+    Logger.log(`情緒統計結果：正面=${stats.positive}, 負面=${stats.negative}, 中性=${stats.neutral}, 問題=${stats.problemDetected}`);
+    return stats;
+  } catch (error) {
+    Logger.log(`獲取情緒統計時出錯：${error.toString()}`);
+    return stats;
+  }
+}
+
+/**
+ * 使用 Gemini API 生成每日統計摘要
+ */
+function generateDailySummaryWithGemini(stats) {
+  try {
+    // 如果沒有設置 API 金鑰，則返回默認訊息
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+      Logger.log(`Gemini API 金鑰未設置，無法生成每日摘要`);
+      return "AI 分析摘要功能暫時不可用（API 金鑰未設置）。";
+    }
+    
+    // 準備提示詞
+    const prompt = `
+請為以下郵件監控數據生成一個簡短的每日摘要報告。注意：你的回答將在Slack消息中被明確標記為「AI生成內容」。
+
+今日統計數據：
+- 檢查郵件總數: ${stats.totalEmails}
+- 觸發關鍵字郵件數: ${stats.keywordTriggeredEmails}
+- 情緒分布：正面(${stats.positiveEmotions}), 負面(${stats.negativeEmotions}), 中性(${stats.neutralEmotions})
+- 檢測到問題的郵件: ${stats.problemDetected}
+
+請提供簡短的分析和見解，重點關注任何異常或趨勢。整體保持在100字以內。回傳純文字，不要使用JSON格式。
+`;
+    
+    // 呼叫 Gemini API
+    const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const payload = {
+      "contents": [
+        {
+          "parts": [
+            {
+              "text": prompt
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "temperature": 0.2,
+        "topP": 0.8,
+        "topK": 40
+      }
+    };
+    
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    
+    Logger.log(`向 Gemini API 發送每日統計摘要請求`);
+    const response = UrlFetchApp.fetch(apiEndpoint, options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    
+    // 檢查響應狀態
+    if (responseCode !== 200) {
+      Logger.log(`API返回錯誤狀態碼: ${responseCode}, 響應內容: ${responseText}`);
+      return "AI 無法生成分析（API 錯誤）。";
+    }
+    
+    const responseData = JSON.parse(responseText);
+    
+    // 提取文本內容
+    if (responseData.candidates && responseData.candidates[0] && responseData.candidates[0].content) {
+      const summaryText = responseData.candidates[0].content.parts[0].text;
+      Logger.log(`成功生成每日統計摘要`);
+      return summaryText;
+    }
+    
+    Logger.log(`無法從 Gemini API 的回應中提取有效內容`);
+    return "AI 無法生成有效的分析摘要。";
+    
+  } catch (error) {
+    Logger.log(`生成每日統計摘要時出錯：${error.toString()}`);
+    return "生成AI分析時發生錯誤。";
+  }
+}
+
+/**
+ * 發送每日統計數據到 Slack
+ */
+function sendDailyStatisticsToSlack(stats, aiSummary) {
+  // 計算百分比的輔助函數
+  function calculatePercentage(part, total) {
+    if (total === 0) return 0;
+    return Math.round((part / total) * 100);
+  }
+  
+  // 創建 Slack 消息結構
+  const slackMessage = {
+    "blocks": [
+      {
+        "type": "header",
+        "text": {
+          "type": "plain_text",
+          "text": `📊 每日郵件監控統計報告 (${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy/MM/dd")})`,
+          "emoji": true
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "📧 *基本統計數據：*"
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": `• 今日檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}\n• 情緒分析分布:\n  - 正面情緒: ${stats.positiveEmotions} (${calculatePercentage(stats.positiveEmotions, stats.totalEmails)}%)\n  - 負面情緒: ${stats.negativeEmotions} (${calculatePercentage(stats.negativeEmotions, stats.totalEmails)}%)\n  - 中性情緒: ${stats.neutralEmotions} (${calculatePercentage(stats.neutralEmotions, stats.totalEmails)}%)\n• 檢測到問題的郵件數: ${stats.problemDetected} (${calculatePercentage(stats.problemDetected, stats.totalEmails)}%)`
+        }
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "type": "context",
+        "elements": [
+          {
+            "type": "mrkdwn",
+            "text": "🤖 *AI 生成的分析報告*\n(由 Google Gemini " + GEMINI_MODEL + " 模型生成)"
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": `${aiSummary}`
+        }
+      }
+    ]
+  };
+  
+  // 發送到 Slack
+  sendToSlack(slackMessage);
+  Logger.log(`每日統計報告已發送到 Slack`);
+}
+
+/**
+ * 清除舊的情緒數據
+ */
+function clearOldEmotionData() {
+  try {
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const props = PropertiesService.getScriptProperties().getProperties();
+    let clearedCount = 0;
+    
+    for (const key in props) {
+      if (key.indexOf("_email_") > -1 && !key.startsWith(today)) {
+        PropertiesService.getScriptProperties().deleteProperty(key);
+        clearedCount++;
+      }
+    }
+    
+    Logger.log(`已清除 ${clearedCount} 個舊的情緒數據項目`);
+  } catch (error) {
+    Logger.log(`清除舊情緒數據時出錯：${error.toString()}`);
+  }
+}
+
 //========== 設定與觸發器 ==========//
 
 /**
@@ -590,16 +910,33 @@ function setUpTrigger() {
   // 刪除現有的觸發器，以避免重複
   const triggers = ScriptApp.getProjectTriggers();
   for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === "checkGmailAndNotifySlack") {
+    if (trigger.getHandlerFunction() === "checkGmailAndNotifySlack" || 
+        trigger.getHandlerFunction() === "dailyStatisticsReport") {
       ScriptApp.deleteTrigger(trigger);
     }
   }
   
-  // 設定每 5 分鐘執行一次
+  // 設定每 5 分鐘執行一次郵件檢查
   ScriptApp.newTrigger("checkGmailAndNotifySlack")
     .timeBased()
     .everyMinutes(5)
     .create();
   
-  Logger.log("已設定每 5 分鐘執行一次的觸發器");
+  // 設定每天下午 5:30 執行統計報告
+  ScriptApp.newTrigger("dailyStatisticsReport")
+    .timeBased()
+    .atHour(17)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
+  
+  // 設定每天凌晨清除前一天的情緒數據
+  ScriptApp.newTrigger("clearOldEmotionData")
+    .timeBased()
+    .atHour(0)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
+  
+  Logger.log("已設定所有觸發器");
 }
