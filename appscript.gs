@@ -37,7 +37,7 @@ const EXCLUDED_DOMAINS = [
 const SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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";
 
 // Gmail標籤設定
-const CHECKED_LABEL = "已檢查"; // 用於標記已處理的郵件
+const CHECKED_LABEL = "監控已檢查"; // 用於標記已處理的郵件
 const NOTIFIED_LABEL = "已通知到Slack"; // 用於標記已發送到Slack的郵件
 
 // Gemini API 設定
