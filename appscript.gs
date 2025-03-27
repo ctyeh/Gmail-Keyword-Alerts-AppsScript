@@ -175,6 +175,8 @@ function processMessage(message, subject) {
     sendNotification(subject, from, date, body, actualBody, link, foundKeywords, aiAnalysisResult, message);
   } else {
     Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
+    // 為所有處理過但未發現關鍵字的郵件也添加「已檢查」標籤
+    addLabel(message, CHECKED_LABEL);
   }
 }
 
@@ -306,8 +308,8 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
   // 標記郵件為已通知到Slack
   addLabel(message, NOTIFIED_LABEL);
   
-  // 可選：如果您也希望同時標記為已處理
-  // addLabel(message, CHECKED_LABEL);
+  // 同時標記為已處理，確保所有郵件都有標記
+  addLabel(message, CHECKED_LABEL);
   
   Logger.log(`發送通知：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
 }
