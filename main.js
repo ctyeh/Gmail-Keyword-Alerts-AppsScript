@@ -8,7 +8,7 @@
  * 
  * 依賴模組:
  * - env.js (所有常數)
- * - gmail.js (buildSearchQuery, hasLabel, addLabel, isFromExcludedDomain, checkKeywords, extractActualContent, isForwardedEmail)
+ * - gmail.js (hasLabel, addLabel, isFromExcludedDomain, checkKeywords, extractActualContent, isForwardedEmail)
  * - gemini.js (analyzeEmailWithGemini, logEmailAnalysisResult, storeEmotionAnalysisResult)
  * - slack.js (sendNotification)
  * - statistics.js (dailyStatisticsReport)
@@ -16,32 +16,45 @@
  */
 
 /**
+ * 建立通用搜尋查詢（不包含關鍵字條件）
+ * 
+ * @return {String} - 通用搜尋查詢字串
+ */
+function buildGeneralQuery() {
+  // 添加標籤過濾，只搜尋未處理且未通知的郵件
+  let query = `-label:${CHECKED_LABEL} -label:${NOTIFIED_LABEL}`;
+  
+  // 專門排除寄件備份中的郵件，只搜尋收件匣
+  query += " in:inbox -in:sent";
+  
+  // 添加時間範圍限制（例如只搜尋最近 24 小時內的郵件）
+  const oneDayAgo = new Date();
+  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+  const formattedDate = Utilities.formatDate(oneDayAgo, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  query += ` after:${formattedDate}`;
+  
+  return query;
+}
+
+/**
  * 主要功能：檢查 Gmail 並發送通知到 Slack
  * 此函數作為主要入口點，被觸發器定期調用
  */
 function checkGmailAndNotifySlack() {
-  // 收集所有需要搜尋的關鍵字
-  let allKeywords = [...SINGLE_KEYWORDS];
-  KEYWORD_COMBINATIONS.forEach(combo => {
-    allKeywords = allKeywords.concat(combo);
-  });
-  // 移除重複的關鍵字
-  allKeywords = [...new Set(allKeywords)];
+  // 獲取所有新郵件（不受關鍵字限制）
+  const generalQuery = buildGeneralQuery();
+  const allNewThreads = GmailApp.search(generalQuery, 0, 50);
   
-  // 建立關鍵字搜尋查詢
-  let query = buildSearchQuery(allKeywords);
+  Logger.log(`找到 ${allNewThreads.length} 封新郵件需要分析`);
   
-  // 搜尋符合條件的郵件
-  const threads = GmailApp.search(query, 0, 50);
-  
-  // 如果沒有找到符合條件的郵件，則結束
-  if (threads.length === 0) {
-    Logger.log("沒有找到包含關鍵字的新郵件");
+  // 如果沒有找到新郵件，則結束
+  if (allNewThreads.length === 0) {
+    Logger.log("沒有找到新郵件需要分析");
     return;
   }
 
-  // 處理每個符合條件的郵件討論串
-  processThreads(threads);
+  // 處理每個新郵件討論串
+  processThreads(allNewThreads);
 }
 
 /**
@@ -114,9 +127,14 @@ function processMessage(message, subject) {
       storeEmotionAnalysisResult(message, aiAnalysisResult);
     }
     
-    // 如果 AI 分析發現值得通知的內容，也發送通知
-    if (aiAnalysisResult && aiAnalysisResult.shouldNotify && foundKeywords.length === 0) {
-      foundKeywords.push("AI 檢測到需注意內容");
+    // 如果 AI 分析發現值得通知的內容，不管是否符合關鍵字都發送通知
+    if (aiAnalysisResult && aiAnalysisResult.shouldNotify) {
+      // 檢查是否已經添加了關鍵字通知
+      if (foundKeywords.length === 0) {
+        foundKeywords.push("AI 檢測到需注意內容");
+      } else {
+        foundKeywords.push("AI 也檢測到需注意內容");
+      }
       Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
     }
   }

@@ -32,10 +32,32 @@ function analyzeEmailWithGemini(subject, body, from) {
     
     // 設定提示
     const prompt = `
-你是一個專門分析郵件問題的AI專家。請分析以下電子郵件，並判斷是否滿足以下任一條件：
-1. 表達極度正面的情緒（如強烈感謝或極大讚賞）
-2. 表達極度負面的情緒（如強烈的不滿或憤怒）
-3. 反映我們的服務可能有嚴重系統性問題，特別是需符合下列條件之一：
+你是一個專門分析郵件問題的AI專家。請分析以下電子郵件，並判斷情緒類型及是否需要通知管理員。
+
+詳細分析以下情緒類型：
+
+正面情緒：
+- delighted (欣喜): 用戶表達強烈喜悅或興奮
+- grateful (感謝): 用戶表達感激或謝意
+- impressed (印象深刻): 用戶對服務或產品表示讚賞
+- satisfied (滿意): 用戶表達一般程度的滿意或認可
+- hopeful (充滿希望): 用戶對未來結果表示樂觀
+
+負面情緒：
+- angry (憤怒): 用戶表達強烈不滿或憤怒
+- frustrated (沮喪): 用戶表達挫折感或不便
+- disappointed (失望): 用戶表達期望未被滿足
+- worried (擔憂): 用戶對某事表示擔心或焦慮
+- confused (困惑): 用戶表示不理解或混淆
+
+中性情緒：
+- factual (事實陳述): 用戶純粹傳達資訊或事實
+- inquiring (詢問): 用戶主要是在詢問資訊
+- informative (提供信息): 用戶在提供資訊或回饋
+
+同時判斷是否滿足以下任一需通知條件：
+1. 表達極度正面或負面的情緒（如強烈感謝、極大讚賞、強烈的不滿或憤怒）
+2. 反映我們的服務可能有嚴重系統性問題，特別是需符合下列條件之一：
    - 提到大量郵件寄送失敗或退信
    - 提到系統大量異常或錯誤
    - 提到與詐騙相關的安全問題
@@ -52,7 +74,8 @@ ${contentToAnalyze}
 請以JSON格式回答，包含以下欄位：
 {
   "shouldNotify": true/false, // 是否需要通知（滿足任一條件則為true）
-  "sentiment": "positive"/"negative"/"neutral", // 情緒類型
+  "primarySentiment": "positive"/"negative"/"neutral", // 主要情緒傾向
+  "detailedEmotion": "delighted"/"grateful"/"impressed"/"satisfied"/"hopeful"/"angry"/"frustrated"/"disappointed"/"worried"/"confused"/"factual"/"inquiring"/"informative", // 詳細情緒類型
   "problemDetected": true/false, // 是否檢測到嚴重服務問題
   "summary": "簡短摘要說明分析結果與原因，最多50字"
 }
@@ -105,7 +128,15 @@ ${contentToAnalyze}
       if (jsonMatch) {
         try {
           const jsonResult = JSON.parse(jsonMatch[0]);
-          Logger.log(`Gemini 分析結果 - shouldNotify: ${jsonResult.shouldNotify}, sentiment: ${jsonResult.sentiment}, problemDetected: ${jsonResult.problemDetected} - 寄件者: ${from}, 主旨: ${subject}`);
+          
+          // 確保與舊格式相容
+          if (jsonResult.primarySentiment && !jsonResult.sentiment) {
+            jsonResult.sentiment = jsonResult.primarySentiment;
+          } else if (jsonResult.sentiment && !jsonResult.primarySentiment) {
+            jsonResult.primarySentiment = jsonResult.sentiment;
+          }
+          
+          Logger.log(`Gemini 分析結果 - shouldNotify: ${jsonResult.shouldNotify}, primarySentiment: ${jsonResult.primarySentiment}, detailedEmotion: ${jsonResult.detailedEmotion || "未指定"}, problemDetected: ${jsonResult.problemDetected} - 寄件者: ${from}, 主旨: ${subject}`);
           return jsonResult;
         } catch (parseError) {
           Logger.log(`解析 JSON 時出錯: ${parseError.toString()}, 原始文本: ${text} - 寄件者: ${from}, 主旨: ${subject}`);
@@ -141,7 +172,14 @@ function logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysi
   
   // 記錄情緒分析結果
   if (aiAnalysisResult) {
-    logMessage += ` | 情緒: ${aiAnalysisResult.sentiment}`;
+    const sentiment = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment || "未知";
+    logMessage += ` | 情緒: ${sentiment}`;
+    
+    // 如果有詳細情緒類型，則記錄
+    if (aiAnalysisResult.detailedEmotion) {
+      logMessage += ` | 詳細情緒: ${aiAnalysisResult.detailedEmotion}`;
+    }
+    
     logMessage += ` | 需通知: ${aiAnalysisResult.shouldNotify}`;
     logMessage += ` | 問題檢測: ${aiAnalysisResult.problemDetected}`;
     logMessage += ` | 摘要: ${aiAnalysisResult.summary}`;
@@ -173,8 +211,26 @@ function generateDailySummaryWithGemini(stats) {
 今日統計數據：
 - 檢查郵件總數: ${stats.totalEmails}
 - 觸發關鍵字郵件數: ${stats.keywordTriggeredEmails}
-- 情緒分布：正面(${stats.positiveEmotions}), 負面(${stats.negativeEmotions}), 中性(${stats.neutralEmotions})
-- 檢測到問題的郵件: ${stats.problemDetected}
+
+詳細情緒分布：
+- 正面情緒(${stats.positive}封)：
+  - 欣喜: ${stats.delighted}封
+  - 感謝: ${stats.grateful}封
+  - 印象深刻: ${stats.impressed}封
+  - 滿意: ${stats.satisfied}封
+  - 充滿希望: ${stats.hopeful}封
+- 負面情緒(${stats.negative}封)：
+  - 憤怒: ${stats.angry}封
+  - 沮喪: ${stats.frustrated}封
+  - 失望: ${stats.disappointed}封
+  - 擔憂: ${stats.worried}封
+  - 困惑: ${stats.confused}封
+- 中性情緒(${stats.neutral}封)：
+  - 事實陳述: ${stats.factual}封
+  - 詢問: ${stats.inquiring}封
+  - 提供信息: ${stats.informative}封
+
+- 檢測到問題的郵件: ${stats.problemDetected}封
 
 請提供簡短的分析和見解，重點關注任何異常或趨勢。整體保持在100字以內。回傳純文字，不要使用JSON格式。
 `;
@@ -263,9 +319,32 @@ function storeEmotionAnalysisResult(message, aiAnalysisResult) {
  */
 function getEmotionStatsFromProperties() {
   const stats = {
+    // 基本情緒統計
     positive: 0,
     negative: 0,
     neutral: 0,
+    
+    // 詳細情緒統計
+    // 正面情緒
+    delighted: 0,
+    grateful: 0,
+    impressed: 0,
+    satisfied: 0,
+    hopeful: 0,
+    
+    // 負面情緒
+    angry: 0,
+    frustrated: 0,
+    disappointed: 0,
+    worried: 0,
+    confused: 0,
+    
+    // 中性情緒
+    factual: 0,
+    inquiring: 0,
+    informative: 0,
+    
+    // 問題檢測
     problemDetected: 0
   };
   
@@ -280,13 +359,19 @@ function getEmotionStatsFromProperties() {
         try {
           const aiAnalysisResult = JSON.parse(props[key]);
           
-          // 統計情緒類型
-          if (aiAnalysisResult.sentiment === "positive") {
+          // 統計主要情緒類型
+          const sentiment = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment;
+          if (sentiment === "positive") {
             stats.positive++;
-          } else if (aiAnalysisResult.sentiment === "negative") {
+          } else if (sentiment === "negative") {
             stats.negative++;
           } else {
             stats.neutral++;
+          }
+          
+          // 統計詳細情緒類型
+          if (aiAnalysisResult.detailedEmotion && stats.hasOwnProperty(aiAnalysisResult.detailedEmotion)) {
+            stats[aiAnalysisResult.detailedEmotion]++;
           }
           
           // 統計檢測到問題的數量
@@ -299,7 +384,14 @@ function getEmotionStatsFromProperties() {
       }
     }
     
-    Logger.log(`情緒統計結果：正面=${stats.positive}, 負面=${stats.negative}, 中性=${stats.neutral}, 問題=${stats.problemDetected}`);
+    const detailedLog = [
+      `情緒統計結果：正面=${stats.positive}(欣喜=${stats.delighted},感謝=${stats.grateful},印象深刻=${stats.impressed},滿意=${stats.satisfied},充滿希望=${stats.hopeful})`,
+      `負面=${stats.negative}(憤怒=${stats.angry},沮喪=${stats.frustrated},失望=${stats.disappointed},擔憂=${stats.worried},困惑=${stats.confused})`,
+      `中性=${stats.neutral}(事實陳述=${stats.factual},詢問=${stats.inquiring},提供信息=${stats.informative})`,
+      `問題=${stats.problemDetected}`
+    ].join(', ');
+    
+    Logger.log(detailedLog);
     return stats;
   } catch (error) {
     Logger.log(`獲取情緒統計時出錯：${error.toString()}`);

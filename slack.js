@@ -87,12 +87,33 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
       ]
     });
     
+    // 取得情緒類型
+    const mainEmotion = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment || "未知";
+    let emotionIcon = "❓";
+    if (mainEmotion === "positive") emotionIcon = "😊";
+    else if (mainEmotion === "negative") emotionIcon = "😠";
+    else if (mainEmotion === "neutral") emotionIcon = "😐";
+    
+    // 詳細情緒類型表情
+    const detailedEmotionIcons = {
+      "delighted": "😄", "grateful": "🙏", "impressed": "🤩", "satisfied": "😌", "hopeful": "🤞",
+      "angry": "😡", "frustrated": "😤", "disappointed": "😞", "worried": "😟", "confused": "😕",
+      "factual": "📝", "inquiring": "🔍", "informative": "ℹ️"
+    };
+    
+    // 顯示詳細情緒類型
+    let detailedEmotionText = "";
+    if (aiAnalysisResult.detailedEmotion) {
+      const detailedIcon = detailedEmotionIcons[aiAnalysisResult.detailedEmotion] || "❓";
+      detailedEmotionText = `\n> *詳細情緒：* ${detailedIcon} ${aiAnalysisResult.detailedEmotion}`;
+    }
+    
     // 使用不同的樣式凸顯 AI 評估結果
     slackMessage.blocks.push({
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": `*🤖 AI評估結果：*\n> ${aiAnalysisResult.summary}`
+        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotion}${detailedEmotionText}\n> *問題檢測：* ${aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${aiAnalysisResult.summary}`
       }
     });
   }
@@ -158,7 +179,28 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `• 今日檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}\n• 情緒分析分布:\n  - 正面情緒: ${stats.positiveEmotions} (${calculatePercentage(stats.positiveEmotions, stats.totalEmails)}%)\n  - 負面情緒: ${stats.negativeEmotions} (${calculatePercentage(stats.negativeEmotions, stats.totalEmails)}%)\n  - 中性情緒: ${stats.neutralEmotions} (${calculatePercentage(stats.neutralEmotions, stats.totalEmails)}%)\n• 檢測到問題的郵件數: ${stats.problemDetected} (${calculatePercentage(stats.problemDetected, stats.totalEmails)}%)`
+          "text": `• 今日檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}`
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": `*情緒分析分布:*\n• 正面情緒: ${stats.positiveEmotions} (${calculatePercentage(stats.positiveEmotions, stats.totalEmails)}%)\n  - 😄 欣喜: ${stats.delighted || 0}\n  - 🙏 感謝: ${stats.grateful || 0}\n  - 🤩 印象深刻: ${stats.impressed || 0}\n  - 😌 滿意: ${stats.satisfied || 0}\n  - 🤞 充滿希望: ${stats.hopeful || 0}`
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": `• 負面情緒: ${stats.negativeEmotions} (${calculatePercentage(stats.negativeEmotions, stats.totalEmails)}%)\n  - 😡 憤怒: ${stats.angry || 0}\n  - 😤 沮喪: ${stats.frustrated || 0}\n  - 😞 失望: ${stats.disappointed || 0}\n  - 😟 擔憂: ${stats.worried || 0}\n  - 😕 困惑: ${stats.confused || 0}`
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": `• 中性情緒: ${stats.neutralEmotions} (${calculatePercentage(stats.neutralEmotions, stats.totalEmails)}%)\n  - 📝 事實陳述: ${stats.factual || 0}\n  - 🔍 詢問: ${stats.inquiring || 0}\n  - ℹ️ 提供信息: ${stats.informative || 0}\n\n• 檢測到問題的郵件數: ${stats.problemDetected} (${calculatePercentage(stats.problemDetected, stats.totalEmails)}%)`
         }
       },
       {
