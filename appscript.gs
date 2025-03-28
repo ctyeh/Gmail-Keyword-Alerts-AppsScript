@@ -41,7 +41,7 @@ const CHECKED_LABEL = "監控已檢查"; // 用於標記已處理的郵件
 const NOTIFIED_LABEL = "監控已Slack"; // 用於標記已發送到Slack的郵件
 
 // Gemini API 設定
-const GEMINI_API_KEY = "AIzaSyCMpX8Nh2Yvvz2F3ydjm75nTCbFV5Wzy1s"; // 替換為您的 Gemini API 金鑰
+const GEMINI_API_KEY = ""; // 替換為您的 Gemini API 金鑰
 const USE_GEMINI_API = true; // 設置為 false 可暫時停用 Gemini API 功能
 const GEMINI_MODEL = "gemini-2.0-flash"; // 最新的模型名稱
 
