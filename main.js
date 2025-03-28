@@ -200,10 +200,22 @@ function buildTodayOnlyQuery() {
   // 僅搜尋收件匣中的郵件（排除寄件備份）
   let query = "in:inbox -in:sent";
   
-  // 添加當天日期範圍限制
+  // 取得當天日期
   const today = new Date();
-  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
-  query += ` after:${formattedDate} before:${formattedDate}+1d`;
+  
+  // 計算明天日期
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  // 格式化為 yyyy/mm/dd
+  const todayFormatted = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  const tomorrowFormatted = Utilities.formatDate(tomorrow, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  
+  // 構建明確的日期範圍查詢
+  query += ` after:${todayFormatted} before:${tomorrowFormatted}`;
+  
+  // 增加日誌記錄，方便調試
+  Logger.log(`搜尋查詢：${query}`);
   
   return query;
 }
@@ -218,14 +230,28 @@ function reanalyzeAllTodayEmails() {
   // 清除當天已存儲的情緒數據
   clearTodayEmotionData();
   
-  // 獲取當天所有郵件（不管是否已處理）
+  // 獲取當天所有郵件（使用分頁方式）
   const todayQuery = buildTodayOnlyQuery();
-  const allTodayThreads = GmailApp.search(todayQuery, 0, 100);  // 增加郵件數量上限
   
-  Logger.log(`找到 ${allTodayThreads.length} 個討論串需要重新分析`);
+  // 實作分頁獲取所有郵件討論串
+  let allThreads = [];
+  let page = 0;
+  let pageSize = 100;
+  let currentThreads;
+  
+  do {
+    currentThreads = GmailApp.search(todayQuery, page * pageSize, pageSize);
+    if (currentThreads.length > 0) {
+      allThreads = allThreads.concat(currentThreads);
+      Logger.log(`已獲取第 ${page + 1} 頁郵件討論串，本頁有 ${currentThreads.length} 個`);
+    }
+    page++;
+  } while (currentThreads.length === pageSize); // 當獲取的郵件數等於頁面大小時，表示可能還有下一頁
+  
+  Logger.log(`總共找到 ${allThreads.length} 個討論串需要重新分析`);
   
   // 如果沒有找到郵件，則結束
-  if (allTodayThreads.length === 0) {
+  if (allThreads.length === 0) {
     Logger.log("當天沒有郵件需要分析");
     return;
   }
@@ -235,26 +261,23 @@ function reanalyzeAllTodayEmails() {
   let processedCount = 0;
   
   // 處理每個郵件討論串
-  for (const thread of allTodayThreads) {
+  for (const thread of allThreads) {
     const messages = thread.getMessages();
     const subject = thread.getFirstMessageSubject();
     
-    // 如果需要可以選擇先移除指定標籤以強制重新處理
-    // thread.removeLabel(GmailApp.getUserLabelByName(CHECKED_LABEL));
-    // thread.removeLabel(GmailApp.getUserLabelByName(NOTIFIED_LABEL));
+    // 移除標籤以強制重新處理
+    if (GmailApp.getUserLabelByName(CHECKED_LABEL)) {
+      thread.removeLabel(GmailApp.getUserLabelByName(CHECKED_LABEL));
+    }
     
     for (const message of messages) {
-      // 檢查郵件是否是當天收到的
-      const messageDate = message.getDate();
-      const today = new Date();
+      // Gmail 搜尋已經限制了日期範圍，不需要再次檢查日期
+      // 直接處理所有訊息
+      messageCount++;
       
-      if (messageDate.toDateString() === today.toDateString()) {
-        messageCount++;
-        
-        // 處理郵件（不管是否已經處理過）
-        processMessage(message, subject);
-        processedCount++;
-      }
+      // 處理郵件（不管是否已經處理過）
+      processMessage(message, subject);
+      processedCount++;
     }
   }
   
