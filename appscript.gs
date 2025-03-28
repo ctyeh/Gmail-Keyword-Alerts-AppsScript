@@ -34,14 +34,14 @@ const EXCLUDED_DOMAINS = [
 ]; 
 
 // Slack設定
-const SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_URL = getSlackWebhookUrl();
 
 // Gmail標籤設定
 const CHECKED_LABEL = "監控已檢查"; // 用於標記已處理的郵件
 const NOTIFIED_LABEL = "監控已Slack"; // 用於標記已發送到Slack的郵件
 
 // Gemini API 設定
-const GEMINI_API_KEY = ""; // 替換為您的 Gemini API 金鑰
+const GEMINI_API_KEY = getGeminiApiKey();
 const USE_GEMINI_API = true; // 設置為 false 可暫時停用 Gemini API 功能
 const GEMINI_MODEL = "gemini-2.0-flash"; // 最新的模型名稱
 
@@ -185,6 +185,9 @@ function processMessage(message, subject) {
       Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
     }
   }
+  
+  // 記錄郵件分析結果到日誌
+  logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysisResult);
   
   // 如果有發現關鍵字或 AI 檢測到問題，則發送通知
   if (foundKeywords.length > 0) {
@@ -439,6 +442,29 @@ ${contentToAnalyze}
   }
 }
 
+/**
+ * 記錄郵件分析結果到日誌
+ */
+function logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysisResult) {
+  const messageId = message.getId();
+  let logMessage = `[郵件分析] ID: ${messageId} | 寄件者: ${from} | 主旨: ${subject}`;
+  
+  // 記錄關鍵字信息
+  logMessage += ` | 關鍵字: ${foundKeywords.length > 0 ? foundKeywords.join(',') : '無'}`;
+  
+  // 記錄情緒分析結果
+  if (aiAnalysisResult) {
+    logMessage += ` | 情緒: ${aiAnalysisResult.sentiment}`;
+    logMessage += ` | 需通知: ${aiAnalysisResult.shouldNotify}`;
+    logMessage += ` | 問題檢測: ${aiAnalysisResult.problemDetected}`;
+    logMessage += ` | 摘要: ${aiAnalysisResult.summary}`;
+  } else {
+    logMessage += " | 情緒分析: 無結果";
+  }
+  
+  Logger.log(logMessage);
+}
+
 //========== 郵件處理輔助函數 ==========//
 
 /**
@@ -607,8 +633,18 @@ function truncateBody(text, maxLength) {
  */
 function dailyStatisticsReport() {
   // 獲取今天的日期
-  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  Logger.log(`開始生成 ${today} 日統計報告`);
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0 是星期日，6 是星期六
+  
+  // 如果是週末（星期六或星期日），則不執行報告
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    Logger.log(`今天是週末 (${dayOfWeek === 0 ? '星期日' : '星期六'})，不發送每日統計報告`);
+    return;
+  }
+  
+  // 格式化今天的日期
+  const todayFormatted = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  Logger.log(`開始生成 ${todayFormatted} 日統計報告`);
   
   // 統計基本數據
   const stats = {
@@ -862,7 +898,7 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "elements": [
           {
             "type": "mrkdwn",
-            "text": "🤖 *AI 生成的分析報告*\n(由 Google Gemini " + GEMINI_MODEL + " 模型生成)"
+            "text": "🤖 *AI 生成的分析報告*\n(由 " + GEMINI_MODEL + " 模型生成)"
           }
         ]
       },
