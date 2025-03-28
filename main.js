@@ -1,0 +1,205 @@
+/**
+ * main.js - 主要執行邏輯
+ * 
+ * 此檔案包含主要的執行邏輯和流程控制，包括:
+ * - 入口點函數
+ * - 郵件處理流程
+ * - 觸發器設定
+ * 
+ * 依賴模組:
+ * - env.js (所有常數)
+ * - gmail.js (buildSearchQuery, hasLabel, addLabel, isFromExcludedDomain, checkKeywords, extractActualContent, isForwardedEmail)
+ * - gemini.js (analyzeEmailWithGemini, logEmailAnalysisResult, storeEmotionAnalysisResult)
+ * - slack.js (sendNotification)
+ * - statistics.js (dailyStatisticsReport)
+ * - utils.js (通用工具函數)
+ */
+
+/**
+ * 主要功能：檢查 Gmail 並發送通知到 Slack
+ * 此函數作為主要入口點，被觸發器定期調用
+ */
+function checkGmailAndNotifySlack() {
+  // 收集所有需要搜尋的關鍵字
+  let allKeywords = [...SINGLE_KEYWORDS];
+  KEYWORD_COMBINATIONS.forEach(combo => {
+    allKeywords = allKeywords.concat(combo);
+  });
+  // 移除重複的關鍵字
+  allKeywords = [...new Set(allKeywords)];
+  
+  // 建立關鍵字搜尋查詢
+  let query = buildSearchQuery(allKeywords);
+  
+  // 搜尋符合條件的郵件
+  const threads = GmailApp.search(query, 0, 50);
+  
+  // 如果沒有找到符合條件的郵件，則結束
+  if (threads.length === 0) {
+    Logger.log("沒有找到包含關鍵字的新郵件");
+    return;
+  }
+
+  // 處理每個符合條件的郵件討論串
+  processThreads(threads);
+}
+
+/**
+ * 處理郵件討論串
+ * 
+ * @param {Array<GmailThread>} threads - Gmail 討論串陣列
+ */
+function processThreads(threads) {
+  for (const thread of threads) {
+    const messages = thread.getMessages();
+    const subject = thread.getFirstMessageSubject();
+    
+    for (const message of messages) {
+      // 檢查郵件是否已經有「已檢查」或「已通知到Slack」標籤
+      if (!hasLabel(message, CHECKED_LABEL) && !hasLabel(message, NOTIFIED_LABEL)) {
+        processMessage(message, subject);
+      }
+    }
+  }
+}
+
+/**
+ * 處理單個郵件
+ * 
+ * @param {GmailMessage} message - Gmail 郵件對象
+ * @param {String} subject - 郵件主旨
+ */
+function processMessage(message, subject) {
+  const from = message.getFrom();
+  const date = message.getDate();
+  const body = message.getPlainBody();
+  const link = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
+  
+  // 記錄開始分析的郵件
+  Logger.log(`開始分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
+  
+  // 檢查寄件者是否來自排除的網域，如果是則跳過
+  if (isFromExcludedDomain(from)) {
+    Logger.log(`跳過來自排除網域的郵件: ${from}, 主旨: ${subject}`);
+    return; // 跳過這封郵件的處理
+  }
+  
+  // 檢查是否為轉寄郵件
+  const isForwarded = isForwardedEmail(subject);
+  
+  // 如果是轉寄郵件，加強過濾
+  if (isForwarded) {
+    Logger.log(`檢測到轉寄郵件: ${subject}`);
+    // 如果決定跳過轉寄郵件，取消下面的注釋
+    // return;
+  }
+  
+  // 獲取郵件的實際內容（排除引用部分）
+  const actualBody = extractActualContent(body);
+  
+  // 檢查郵件內容是否包含關鍵字
+  const foundKeywords = checkKeywords(subject, actualBody, isForwarded);
+  if (foundKeywords.length > 0) {
+    Logger.log(`在郵件中發現關鍵字: ${foundKeywords.join(', ')} - 寄件者: ${from}, 主旨: ${subject}`);
+  }
+  
+  // 使用 Gemini API 分析郵件內容
+  let aiAnalysisResult = null;
+  if (USE_GEMINI_API) {
+    Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
+    aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
+    
+    // 將情緒分析結果存儲到 Properties 服務
+    if (aiAnalysisResult) {
+      storeEmotionAnalysisResult(message, aiAnalysisResult);
+    }
+    
+    // 如果 AI 分析發現值得通知的內容，也發送通知
+    if (aiAnalysisResult && aiAnalysisResult.shouldNotify && foundKeywords.length === 0) {
+      foundKeywords.push("AI 檢測到需注意內容");
+      Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
+    }
+  }
+  
+  // 記錄郵件分析結果到日誌
+  logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysisResult);
+  
+  // 如果有發現關鍵字或 AI 檢測到問題，則發送通知
+  if (foundKeywords.length > 0) {
+    sendNotification(subject, from, date, body, actualBody, link, foundKeywords, aiAnalysisResult, message);
+  } else {
+    Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
+    // 為所有處理過但未發現關鍵字的郵件也添加「已檢查」標籤
+    addLabel(message, CHECKED_LABEL);
+  }
+}
+
+/**
+ * 設定觸發器 (需要手動運行一次此函數來設定定時觸發)
+ */
+function setUpTrigger() {
+  // 刪除現有的觸發器，以避免重複
+  const triggers = ScriptApp.getProjectTriggers();
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === "checkGmailAndNotifySlack" || 
+        trigger.getHandlerFunction() === "dailyStatisticsReport" ||
+        trigger.getHandlerFunction() === "clearOldEmotionData") {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  }
+  
+  // 設定每 5 分鐘執行一次郵件檢查
+  ScriptApp.newTrigger("checkGmailAndNotifySlack")
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  
+  // 設定每天下午 5:30 執行統計報告
+  ScriptApp.newTrigger("dailyStatisticsReport")
+    .timeBased()
+    .atHour(17)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
+  
+  // 設定每天凌晨清除前一天的情緒數據
+  ScriptApp.newTrigger("clearOldEmotionData")
+    .timeBased()
+    .atHour(0)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
+  
+  Logger.log("已設定所有觸發器");
+}
+
+/**
+ * 初始運行指南 
+ * 此函數只是提供說明，不需要實際運行
+ */
+function howToUse() {
+  Logger.log(`
+=== Gmail 關鍵字監控與 Slack 通知系統使用指南 ===
+
+1. 設定環境變數:
+   - 在 Google Apps Script 的 Script Properties 中設定:
+     - SLACK_WEBHOOK_URL: Slack 的 Webhook URL
+     - GEMINI_API_KEY: Google Gemini API 金鑰
+
+2. 執行 setUpTrigger() 函數以設定自動觸發:
+   - 每 5 分鐘執行一次郵件檢查
+   - 每天下午 5:30 執行統計報告
+   - 每天凌晨清除前一天的情緒數據
+
+3. 您也可以手動執行:
+   - checkGmailAndNotifySlack(): 立即檢查郵件
+   - dailyStatisticsReport(): 立即生成每日統計
+   
+4. 調整設定:
+   - 編輯 env.js 檔案中的常數來自定義:
+     - 監控關鍵字
+     - 排除網域
+     - 標籤名稱
+     - Gemini API 設定
+  `);
+}
