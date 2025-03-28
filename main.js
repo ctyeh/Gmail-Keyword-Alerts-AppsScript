@@ -192,6 +192,101 @@ function setUpTrigger() {
 }
 
 /**
+ * 建立當天搜尋查詢（不包含標籤過濾，僅限當天）
+ * 
+ * @return {String} - 當天郵件搜尋查詢字串
+ */
+function buildTodayOnlyQuery() {
+  // 僅搜尋收件匣中的郵件（排除寄件備份）
+  let query = "in:inbox -in:sent";
+  
+  // 添加當天日期範圍限制
+  const today = new Date();
+  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+  query += ` after:${formattedDate} before:${formattedDate}+1d`;
+  
+  return query;
+}
+
+/**
+ * 重新分析當天所有郵件（不管是否曾檢查過）
+ * 此函數為手動維護功能，可在需要時執行
+ */
+function reanalyzeAllTodayEmails() {
+  Logger.log("開始重新分析當天所有郵件...");
+  
+  // 清除當天已存儲的情緒數據
+  clearTodayEmotionData();
+  
+  // 獲取當天所有郵件（不管是否已處理）
+  const todayQuery = buildTodayOnlyQuery();
+  const allTodayThreads = GmailApp.search(todayQuery, 0, 100);  // 增加郵件數量上限
+  
+  Logger.log(`找到 ${allTodayThreads.length} 個討論串需要重新分析`);
+  
+  // 如果沒有找到郵件，則結束
+  if (allTodayThreads.length === 0) {
+    Logger.log("當天沒有郵件需要分析");
+    return;
+  }
+  
+  // 計數器
+  let messageCount = 0;
+  let processedCount = 0;
+  
+  // 處理每個郵件討論串
+  for (const thread of allTodayThreads) {
+    const messages = thread.getMessages();
+    const subject = thread.getFirstMessageSubject();
+    
+    // 如果需要可以選擇先移除指定標籤以強制重新處理
+    // thread.removeLabel(GmailApp.getUserLabelByName(CHECKED_LABEL));
+    // thread.removeLabel(GmailApp.getUserLabelByName(NOTIFIED_LABEL));
+    
+    for (const message of messages) {
+      // 檢查郵件是否是當天收到的
+      const messageDate = message.getDate();
+      const today = new Date();
+      
+      if (messageDate.toDateString() === today.toDateString()) {
+        messageCount++;
+        
+        // 處理郵件（不管是否已經處理過）
+        processMessage(message, subject);
+        processedCount++;
+      }
+    }
+  }
+  
+  Logger.log(`重新分析完成：處理了 ${processedCount} 封郵件，共 ${messageCount} 封當天郵件`);
+}
+
+/**
+ * 清除當天的情緒分析數據
+ * 用於重新分析前，確保數據是最新的
+ */
+function clearTodayEmotionData() {
+  try {
+    const today = new Date();
+    const todayString = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const props = PropertiesService.getScriptProperties().getProperties();
+    let clearedCount = 0;
+    
+    // 遍歷刪除今天的數據
+    for (const key in props) {
+      if (key.startsWith(todayString + "_email_")) {
+        PropertiesService.getScriptProperties().deleteProperty(key);
+        clearedCount++;
+      }
+    }
+    
+    Logger.log(`已清除 ${clearedCount} 個今日情緒數據項目`);
+  } catch (error) {
+    Logger.log(`清除今日情緒數據時出錯：${error.toString()}`);
+  }
+}
+
+/**
  * 初始運行指南 
  * 此函數只是提供說明，不需要實際運行
  */
@@ -212,6 +307,7 @@ function howToUse() {
 3. 您也可以手動執行:
    - checkGmailAndNotifySlack(): 立即檢查郵件
    - dailyStatisticsReport(): 立即生成每日統計
+   - reanalyzeAllTodayEmails(): 重新分析當天所有郵件（維護功能）
    
 4. 調整設定:
    - 編輯 env.js 檔案中的常數來自定義:
