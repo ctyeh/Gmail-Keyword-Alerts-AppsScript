@@ -164,7 +164,7 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "header",
         "text": {
           "type": "plain_text",
-          "text": `📊 每日郵件監控統計報告 (${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy/MM/dd")})`,
+          "text": `📊 郵件監控統計報告 (${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy/MM/dd")})`,
           "emoji": true
         }
       },
@@ -172,14 +172,14 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": "📧 *基本統計數據：*"
+          "text": `📧 *基本統計數據：* ${stats.dateRange === "今日" ? "" : `\n(資料範圍：${stats.dateRange})`}`
         }
       },
       {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `• 今日檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}`
+          "text": `• 檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}`
         }
       },
       {

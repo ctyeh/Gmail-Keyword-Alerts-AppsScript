@@ -31,14 +31,36 @@ function dailyStatisticsReport() {
   const todayFormatted = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
   Logger.log(`開始生成 ${todayFormatted} 日統計報告`);
   
+  // 檢查是否為週一（需要包含週末數據）
+  const isMonday = dayOfWeek === 1;
+  
+  // 如果是週一，獲取週六和週日的日期
+  let datesToInclude = [today]; // 默認只包含今天
+  let dateRange = "今日";
+  
+  if (isMonday) {
+    // 獲取前兩天的日期（週六和週日）
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() - 2); // 週一往前兩天是週六
+    
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - 1); // 週一往前一天是週日
+    
+    datesToInclude = [saturday, sunday, today]; // 週六、週日和今天（週一）
+    dateRange = "週六至今日";
+    
+    Logger.log(`今天是週一，將包含週六(${Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy-MM-dd")})和週日(${Utilities.formatDate(sunday, Session.getScriptTimeZone(), "yyyy-MM-dd")})的數據`);
+  }
+  
   // 統計基本數據
   const stats = {
-    totalEmails: countCheckedEmails(),
-    keywordTriggeredEmails: countKeywordTriggeredEmails(),
+    totalEmails: countCheckedEmails(isMonday),
+    keywordTriggeredEmails: countKeywordTriggeredEmails(isMonday),
     positiveEmotions: 0,
     negativeEmotions: 0,
     neutralEmotions: 0,
     problemDetected: 0,
+    dateRange: dateRange, // 記錄數據日期範圍，用於報表顯示
     
     // 詳細情緒統計
     // 正面情緒
@@ -62,7 +84,7 @@ function dailyStatisticsReport() {
   };
   
   // 從 Properties 服務獲取情緒分析數據
-  const emotionStats = getEmotionStatsFromProperties();
+  const emotionStats = getEmotionStatsFromProperties(datesToInclude);
   
   // 複製所有情緒統計數據
   Object.keys(emotionStats).forEach(key => {
@@ -96,25 +118,47 @@ function dailyStatisticsReport() {
 /**
  * 統計檢查過的郵件數量
  * 
+ * @param {Boolean} [includeWeekend=false] - 是否包含週末數據（週一報表使用）
  * @return {Number} - 郵件數量
  */
-function countCheckedEmails() {
-  // 獲取帶有「已檢查」標籤且日期是今天的郵件
+function countCheckedEmails(includeWeekend = false) {
   const today = new Date();
-  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
   
-  return countLabeledEmails(CHECKED_LABEL, `after:${formattedDate}`);
+  if (includeWeekend) {
+    // 週一報表：獲取從週六開始的數據
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() - 2);
+    const formattedDate = Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    
+    Logger.log(`統計從 ${formattedDate} 起的檢查郵件`);
+    return countLabeledEmails(CHECKED_LABEL, `after:${formattedDate}`);
+  } else {
+    // 一般報表：只獲取今天的數據
+    const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    return countLabeledEmails(CHECKED_LABEL, `after:${formattedDate}`);
+  }
 }
 
 /**
  * 統計觸發關鍵字的郵件數量
  * 
+ * @param {Boolean} [includeWeekend=false] - 是否包含週末數據（週一報表使用）
  * @return {Number} - 郵件數量
  */
-function countKeywordTriggeredEmails() {
-  // 獲取帶有「已通知到Slack」標籤且日期是今天的郵件
+function countKeywordTriggeredEmails(includeWeekend = false) {
   const today = new Date();
-  const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
   
-  return countLabeledEmails(NOTIFIED_LABEL, `after:${formattedDate}`);
+  if (includeWeekend) {
+    // 週一報表：獲取從週六開始的數據
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() - 2);
+    const formattedDate = Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    
+    Logger.log(`統計從 ${formattedDate} 起的關鍵字觸發郵件`);
+    return countLabeledEmails(NOTIFIED_LABEL, `after:${formattedDate}`);
+  } else {
+    // 一般報表：只獲取今天的數據
+    const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    return countLabeledEmails(NOTIFIED_LABEL, `after:${formattedDate}`);
+  }
 }

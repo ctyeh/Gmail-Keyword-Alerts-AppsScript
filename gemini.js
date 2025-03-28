@@ -315,9 +315,10 @@ function storeEmotionAnalysisResult(message, aiAnalysisResult) {
 /**
  * 從 Properties 服務獲取情緒統計數據
  * 
+ * @param {Date[]} [datesToInclude] - 要包含的日期數組，默認為今天
  * @return {Object} - 包含各種情緒統計數據的物件
  */
-function getEmotionStatsFromProperties() {
+function getEmotionStatsFromProperties(datesToInclude) {
   const stats = {
     // 基本情緒統計
     positive: 0,
@@ -345,41 +346,50 @@ function getEmotionStatsFromProperties() {
     informative: 0,
     
     // 問題檢測
-    problemDetected: 0
+    problemDetected: 0,
+    
+    // 如果是週一報表，記錄數據來源
+    includedDates: []
   };
   
   try {
-    // 獲取所有帶有今天日期前綴的屬性
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    // 默認只查詢今天的數據
+    const dates = datesToInclude || [new Date()];
+    const dateStrings = dates.map(date => Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd"));
     const props = PropertiesService.getScriptProperties().getProperties();
     
-    // 遍歷屬性並統計情緒數據
-    for (const key in props) {
-      if (key.startsWith(today + "_email_")) {
-        try {
-          const aiAnalysisResult = JSON.parse(props[key]);
-          
-          // 統計主要情緒類型
-          const sentiment = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment;
-          if (sentiment === "positive") {
-            stats.positive++;
-          } else if (sentiment === "negative") {
-            stats.negative++;
-          } else {
-            stats.neutral++;
+    // 遍歷每個日期的數據
+    for (const dateString of dateStrings) {
+      stats.includedDates.push(dateString); // 記錄包含的日期
+      
+      // 遍歷屬性並統計情緒數據
+      for (const key in props) {
+        if (key.startsWith(dateString + "_email_")) {
+          try {
+            const aiAnalysisResult = JSON.parse(props[key]);
+            
+            // 統計主要情緒類型
+            const sentiment = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment;
+            if (sentiment === "positive") {
+              stats.positive++;
+            } else if (sentiment === "negative") {
+              stats.negative++;
+            } else {
+              stats.neutral++;
+            }
+            
+            // 統計詳細情緒類型
+            if (aiAnalysisResult.detailedEmotion && stats.hasOwnProperty(aiAnalysisResult.detailedEmotion)) {
+              stats[aiAnalysisResult.detailedEmotion]++;
+            }
+            
+            // 統計檢測到問題的數量
+            if (aiAnalysisResult.problemDetected) {
+              stats.problemDetected++;
+            }
+          } catch (parseError) {
+            Logger.log(`解析情緒數據時出錯：${parseError.toString()}`);
           }
-          
-          // 統計詳細情緒類型
-          if (aiAnalysisResult.detailedEmotion && stats.hasOwnProperty(aiAnalysisResult.detailedEmotion)) {
-            stats[aiAnalysisResult.detailedEmotion]++;
-          }
-          
-          // 統計檢測到問題的數量
-          if (aiAnalysisResult.problemDetected) {
-            stats.problemDetected++;
-          }
-        } catch (parseError) {
-          Logger.log(`解析情緒數據時出錯：${parseError.toString()}`);
         }
       }
     }
@@ -401,17 +411,49 @@ function getEmotionStatsFromProperties() {
 
 /**
  * 清除舊的情緒數據
+ * 保留最近3天數據以支援週一報表包含週末數據
  */
 function clearOldEmotionData() {
   try {
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0是週日，1是週一，6是週六
+    
+    // 計算要保留的天數，如果是週日或週一則保留3天的數據
+    let daysToKeep = 1;  // 默認只保留今天
+    
+    if (dayOfWeek === 0 || dayOfWeek === 1) {
+      daysToKeep = 3;  // 週日或週一保留3天
+      Logger.log(`今天是${dayOfWeek === 0 ? '週日' : '週一'}，將保留最近3天的數據`);
+    } else if (dayOfWeek === 6) {
+      daysToKeep = 2;  // 週六保留2天
+      Logger.log(`今天是週六，將保留最近2天的數據`);
+    }
+    
+    // 計算需要保留的最早日期
+    const earliestDateToKeep = new Date(today);
+    earliestDateToKeep.setDate(today.getDate() - (daysToKeep - 1));
+    const earliestDateString = Utilities.formatDate(earliestDateToKeep, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    
+    Logger.log(`將保留 ${earliestDateString} 之後的情緒數據`);
+    
+    // 獲取所有屬性
     const props = PropertiesService.getScriptProperties().getProperties();
     let clearedCount = 0;
     
+    // 遍歷刪除舊數據
     for (const key in props) {
-      if (key.indexOf("_email_") > -1 && !key.startsWith(today)) {
-        PropertiesService.getScriptProperties().deleteProperty(key);
-        clearedCount++;
+      if (key.indexOf("_email_") > -1) {
+        // 提取日期部分
+        const dateMatch = key.match(/^(\d{4}-\d{2}-\d{2})_/);
+        if (dateMatch) {
+          const propDate = dateMatch[1];
+          
+          // 如果日期早於需要保留的最早日期，則刪除
+          if (propDate < earliestDateString) {
+            PropertiesService.getScriptProperties().deleteProperty(key);
+            clearedCount++;
+          }
+        }
       }
     }
     
