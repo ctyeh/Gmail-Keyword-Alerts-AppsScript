@@ -21,8 +21,11 @@
  */
 function analyzeEmailWithGemini(subject, body, from) {
   try {
+    // 獲取 API 金鑰
+    const apiKey = getGeminiApiKey();
+    
     // 如果沒有設置 API 金鑰，則返回 null
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
       Logger.log(`Gemini API 金鑰未設置，跳過 AI 分析 - 寄件者: ${from}, 主旨: ${subject}`);
       return null;
     }
@@ -82,7 +85,7 @@ ${contentToAnalyze}
 `;
 
     // 呼叫 Gemini API - 使用最新的 API 版本和端點
-    const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
     const payload = {
       "contents": [
         {
@@ -198,8 +201,11 @@ function logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysi
  */
 function generateDailySummaryWithGemini(stats) {
   try {
+    // 獲取 API 金鑰
+    const apiKey = getGeminiApiKey();
+    
     // 如果沒有設置 API 金鑰，則返回默認訊息
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
       Logger.log(`Gemini API 金鑰未設置，無法生成每日摘要`);
       return "AI 分析摘要功能暫時不可用（API 金鑰未設置）。";
     }
@@ -236,7 +242,7 @@ function generateDailySummaryWithGemini(stats) {
 `;
     
     // 呼叫 Gemini API
-    const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
     const payload = {
       "contents": [
         {
