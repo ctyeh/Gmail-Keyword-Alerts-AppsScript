@@ -91,9 +91,11 @@ function processMessage(message, subject) {
   // 記錄開始分析的郵件
   Logger.log(`開始分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
   
-  // 檢查寄件者是否來自排除的網域，如果是則跳過
+  // 檢查寄件者是否來自排除的網域，如果是則標記為已檢查並跳過
   if (isFromExcludedDomain(from)) {
     Logger.log(`跳過來自排除網域的郵件: ${from}, 主旨: ${subject}`);
+    // 為排除網域的郵件也添加「已檢查」標籤，避免重複處理
+    addLabel(message, CHECKED_LABEL);
     return; // 跳過這封郵件的處理
   }
   
