@@ -31,7 +31,9 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "type": "header",
         "text": {
           "type": "plain_text",
-          "text": "📨 Gmail 關鍵字通知",
+          "text": aiAnalysisResult && aiAnalysisResult.shouldNotify && foundKeywords.length === 0 
+            ? "🤖 AI 判定建議注意郵件" 
+            : "📨 關鍵字比對 注意郵件",
           "emoji": true
         }
       },
@@ -39,7 +41,9 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `*發現關鍵字：* ${foundKeywords.join(', ')}`
+          "text": foundKeywords.length > 0 
+            ? `*發現關鍵字：* ${foundKeywords.join(', ')}` 
+            : `*AI 判定需要注意的郵件*`
         }
       },
       {
@@ -87,8 +91,39 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
       ]
     });
     
-    // 取得情緒類型
-    const mainEmotion = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment || "未知";
+    // 主要情緒類型對照表
+    const mainEmotionMap = {
+      "positive": "正面",
+      "negative": "負面",
+      "neutral": "中性",
+      "unknown": "未知"
+    };
+    
+    // 詳細情緒類型對照表
+    const detailedEmotionMap = {
+      // 正面情緒
+      "delighted": "欣喜",
+      "grateful": "感謝",
+      "impressed": "印象深刻",
+      "satisfied": "滿意",
+      "hopeful": "充滿希望",
+      
+      // 負面情緒
+      "angry": "憤怒",
+      "frustrated": "沮喪",
+      "disappointed": "失望",
+      "worried": "擔憂", 
+      "confused": "困惑",
+      
+      // 中性情緒
+      "factual": "事實陳述",
+      "inquiring": "詢問",
+      "informative": "提供信息"
+    };
+    
+    // 取得情緒類型並轉換為繁體中文
+    const mainEmotion = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment || "unknown";
+    const mainEmotionText = mainEmotionMap[mainEmotion] || "未知";
     let emotionIcon = "❓";
     if (mainEmotion === "positive") emotionIcon = "😊";
     else if (mainEmotion === "negative") emotionIcon = "😠";
@@ -105,7 +140,8 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
     let detailedEmotionText = "";
     if (aiAnalysisResult.detailedEmotion) {
       const detailedIcon = detailedEmotionIcons[aiAnalysisResult.detailedEmotion] || "❓";
-      detailedEmotionText = `\n> *詳細情緒：* ${detailedIcon} ${aiAnalysisResult.detailedEmotion}`;
+      const detailedEmotionChinese = detailedEmotionMap[aiAnalysisResult.detailedEmotion] || aiAnalysisResult.detailedEmotion;
+      detailedEmotionText = `\n> *詳細情緒：* ${detailedIcon} ${detailedEmotionChinese}`;
     }
     
     // 使用不同的樣式凸顯 AI 評估結果
@@ -113,7 +149,7 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotion}${detailedEmotionText}\n> *問題檢測：* ${aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${aiAnalysisResult.summary}`
+        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotionText}${detailedEmotionText}\n> *問題檢測：* ${aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${aiAnalysisResult.summary}`
       }
     });
   }
