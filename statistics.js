@@ -6,7 +6,7 @@
  * - 郵件計數統計
  * 
  * 依賴模組:
- * - env.js (CHECKED_LABEL, NOTIFIED_LABEL, USE_GEMINI_API)
+ * - env.js (CHECKED_LABEL, KEYWORD_LABEL, AI_ALERT_LABEL, USE_GEMINI_API)
  * - gmail.js (countLabeledEmails)
  * - gemini.js (getEmotionStatsFromProperties, generateDailySummaryWithGemini)
  * - slack.js (sendDailyStatisticsToSlack)
@@ -56,6 +56,7 @@ function dailyStatisticsReport() {
   const stats = {
     totalEmails: countCheckedEmails(isMonday),
     keywordTriggeredEmails: countKeywordTriggeredEmails(isMonday),
+    aiTriggeredEmails: countAITriggeredEmails(isMonday), // 新增 AI 觸發郵件統計
     positive: 0,      // 正面情緒總數
     negative: 0,      // 負面情緒總數
     neutral: 0,       // 中性情緒總數
@@ -176,10 +177,34 @@ function countKeywordTriggeredEmails(includeWeekend = false) {
     const formattedDate = Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy/MM/dd");
     
     Logger.log(`統計從 ${formattedDate} 起的關鍵字觸發郵件`);
-    return countLabeledEmails(NOTIFIED_LABEL, `after:${formattedDate}`);
+    return countLabeledEmails(KEYWORD_LABEL, `after:${formattedDate}`);
   } else {
     // 一般報表：只獲取今天的數據
     const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
-    return countLabeledEmails(NOTIFIED_LABEL, `after:${formattedDate}`);
+    return countLabeledEmails(KEYWORD_LABEL, `after:${formattedDate}`);
+  }
+}
+
+/**
+ * 統計 AI 檢測觸發的郵件數量
+ * 
+ * @param {Boolean} [includeWeekend=false] - 是否包含週末數據（週一報表使用）
+ * @return {Number} - 郵件數量
+ */
+function countAITriggeredEmails(includeWeekend = false) {
+  const today = new Date();
+  
+  if (includeWeekend) {
+    // 週一報表：獲取從週六開始的數據
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() - 2);
+    const formattedDate = Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    
+    Logger.log(`統計從 ${formattedDate} 起的 AI 檢測觸發郵件`);
+    return countLabeledEmails(AI_ALERT_LABEL, `after:${formattedDate}`);
+  } else {
+    // 一般報表：只獲取今天的數據
+    const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy/MM/dd");
+    return countLabeledEmails(AI_ALERT_LABEL, `after:${formattedDate}`);
   }
 }

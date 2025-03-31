@@ -137,10 +137,7 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
   // 發送到 Slack
   sendToSlack(slackMessage);
   
-  // 標記郵件為已通知到Slack和已處理
-  addLabel(message, NOTIFIED_LABEL);
-  addLabel(message, CHECKED_LABEL);
-  
+  // 記錄已發送通知
   Logger.log(`發送通知：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
 }
 
@@ -179,7 +176,7 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `• 檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}`
+          "text": `• 檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}\n• AI 檢測觸發郵件數: ${stats.aiTriggeredEmails || 0}`
         }
       },
       {

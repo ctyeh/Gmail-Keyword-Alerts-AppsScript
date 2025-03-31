@@ -21,8 +21,8 @@
  * @return {String} - 通用搜尋查詢字串
  */
 function buildGeneralQuery() {
-  // 添加標籤過濾，只搜尋未處理且未通知的郵件
-  let query = `-label:${CHECKED_LABEL} -label:${NOTIFIED_LABEL}`;
+  // 添加標籤過濾，只搜尋未處理的郵件
+  let query = `-label:${CHECKED_LABEL}`;
   
   // 專門排除寄件備份中的郵件，只搜尋收件匣
   query += " in:inbox -in:sent";
@@ -68,8 +68,8 @@ function processThreads(threads) {
     const subject = thread.getFirstMessageSubject();
     
     for (const message of messages) {
-      // 檢查郵件是否已經有「已檢查」或「已通知到Slack」標籤
-      if (!hasLabel(message, CHECKED_LABEL) && !hasLabel(message, NOTIFIED_LABEL)) {
+      // 只檢查郵件是否已經被處理過
+      if (!hasLabel(message, CHECKED_LABEL)) {
         processMessage(message, subject);
       }
     }
@@ -120,6 +120,7 @@ function processMessage(message, subject) {
   
   // 使用 Gemini API 分析郵件內容
   let aiAnalysisResult = null;
+  let aiDetected = false;
   if (USE_GEMINI_API) {
     Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
     aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
@@ -129,14 +130,9 @@ function processMessage(message, subject) {
       storeEmotionAnalysisResult(message, aiAnalysisResult);
     }
     
-    // 如果 AI 分析發現值得通知的內容，不管是否符合關鍵字都發送通知
+    // 標記 AI 是否檢測到需注意的內容
     if (aiAnalysisResult && aiAnalysisResult.shouldNotify) {
-      // 檢查是否已經添加了關鍵字通知
-      if (foundKeywords.length === 0) {
-        foundKeywords.push("AI 檢測到需注意內容");
-      } else {
-        foundKeywords.push("AI 也檢測到需注意內容");
-      }
+      aiDetected = true;
       Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
     }
   }
@@ -144,13 +140,52 @@ function processMessage(message, subject) {
   // 記錄郵件分析結果到日誌
   logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysisResult);
   
-  // 如果有發現關鍵字或 AI 檢測到問題，則發送通知
+  // 處理標籤和通知
+  
+  // 標記為已檢查（所有經過分析的郵件都會被標記）
+  addLabel(message, CHECKED_LABEL);
+  
+  // 檢查是否符合關鍵字，標記並嘗試發送通知
   if (foundKeywords.length > 0) {
-    sendNotification(subject, from, date, body, actualBody, link, foundKeywords, aiAnalysisResult, message);
-  } else {
+    // 標記為「關鍵字符合」
+    addLabel(message, KEYWORD_LABEL);
+    Logger.log(`郵件標記為關鍵字符合 - 寄件者: ${from}, 主旨: ${subject}`);
+    
+    // 準備通知內容
+    const notifyKeywords = [...foundKeywords];
+    if (aiDetected) {
+      notifyKeywords.push("AI 也檢測到需注意內容");
+    }
+    
+    // 嘗試發送 Slack 通知
+    try {
+      sendNotification(subject, from, date, body, actualBody, link, notifyKeywords, aiAnalysisResult, message);
+      Logger.log(`已發送關鍵字通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
+    } catch (error) {
+      Logger.log(`發送關鍵字通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
+    }
+  }
+  
+  // 檢查 AI 是否檢測到需注意內容，標記並嘗試發送通知
+  if (aiDetected) {
+    // 標記為「AI 建議注意」
+    addLabel(message, AI_ALERT_LABEL);
+    Logger.log(`郵件標記為 AI 建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
+    
+    // 如果沒有關鍵字觸發，則單獨發送 AI 檢測通知
+    if (foundKeywords.length === 0) {
+      try {
+        sendNotification(subject, from, date, body, actualBody, link, ["AI 檢測到需注意內容"], aiAnalysisResult, message);
+        Logger.log(`已發送 AI 檢測通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
+      } catch (error) {
+        Logger.log(`發送 AI 檢測通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
+      }
+    }
+  }
+  
+  // 如果既無關鍵字也無 AI 檢測，則只標記為已檢查
+  if (foundKeywords.length === 0 && !aiDetected) {
     Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
-    // 為所有處理過但未發現關鍵字的郵件也添加「已檢查」標籤
-    addLabel(message, CHECKED_LABEL);
   }
 }
 
@@ -267,9 +302,28 @@ function reanalyzeAllTodayEmails() {
     const messages = thread.getMessages();
     const subject = thread.getFirstMessageSubject();
     
-    // 移除標籤以強制重新處理
+    // 移除所有處理標籤以強制重新處理
     if (GmailApp.getUserLabelByName(CHECKED_LABEL)) {
       thread.removeLabel(GmailApp.getUserLabelByName(CHECKED_LABEL));
+    }
+    if (GmailApp.getUserLabelByName(KEYWORD_LABEL)) {
+      thread.removeLabel(GmailApp.getUserLabelByName(KEYWORD_LABEL));
+    }
+    if (GmailApp.getUserLabelByName(AI_ALERT_LABEL)) {
+      thread.removeLabel(GmailApp.getUserLabelByName(AI_ALERT_LABEL));
+    }
+    
+    // 舊標籤兼容性處理（如果存在）
+    try {
+      if (GmailApp.getUserLabelByName(NOTIFIED_LABEL)) {
+        thread.removeLabel(GmailApp.getUserLabelByName(NOTIFIED_LABEL));
+      }
+      if (GmailApp.getUserLabelByName(AI_NOTIFIED_LABEL)) {
+        thread.removeLabel(GmailApp.getUserLabelByName(AI_NOTIFIED_LABEL));
+      }
+    } catch (error) {
+      // 忽略錯誤：舊標籤可能已經被刪除
+      Logger.log(`舊標籤處理時出現警告（可忽略）: ${error.toString()}`);
     }
     
     for (const message of messages) {
