@@ -56,9 +56,9 @@ function dailyStatisticsReport() {
   const stats = {
     totalEmails: countCheckedEmails(isMonday),
     keywordTriggeredEmails: countKeywordTriggeredEmails(isMonday),
-    positiveEmotions: 0,
-    negativeEmotions: 0,
-    neutralEmotions: 0,
+    positive: 0,      // 正面情緒總數
+    negative: 0,      // 負面情緒總數
+    neutral: 0,       // 中性情緒總數
     problemDetected: 0,
     dateRange: dateRange, // 記錄數據日期範圍，用於報表顯示
     
@@ -93,15 +93,36 @@ function dailyStatisticsReport() {
     }
   });
   
-  // 為向後兼容，保留舊的總數屬性名稱
-  stats.positiveEmotions = emotionStats.positive;
-  stats.negativeEmotions = emotionStats.negative;
-  stats.neutralEmotions = emotionStats.neutral;
-  stats.problemDetected = emotionStats.problemDetected;
+  // 驗證詳細情緒類型的總和等於對應的大類總數
+  // 計算正面情緒總和
+  const positiveSum = stats.delighted + stats.grateful + stats.impressed + stats.satisfied + stats.hopeful;
+  // 計算負面情緒總和
+  const negativeSum = stats.angry + stats.frustrated + stats.disappointed + stats.worried + stats.confused;
+  // 計算中性情緒總和
+  const neutralSum = stats.factual + stats.inquiring + stats.informative;
   
-  Logger.log(`詳細情緒統計：正面(${stats.positive})：欣喜=${stats.delighted}, 感謝=${stats.grateful}, 印象深刻=${stats.impressed}, 滿意=${stats.satisfied}, 充滿希望=${stats.hopeful}`);
-  Logger.log(`負面(${stats.negative})：憤怒=${stats.angry}, 沮喪=${stats.frustrated}, 失望=${stats.disappointed}, 擔憂=${stats.worried}, 困惑=${stats.confused}`);
-  Logger.log(`中性(${stats.neutral})：事實陳述=${stats.factual}, 詢問=${stats.inquiring}, 提供信息=${stats.informative}`);
+  // 如果總和與對應的大類數字不符，則使用計算的總和
+  if (stats.positive !== positiveSum) {
+    Logger.log(`修正正面情緒總數: ${stats.positive} → ${positiveSum}`);
+    stats.positive = positiveSum;
+  }
+  if (stats.negative !== negativeSum) {
+    Logger.log(`修正負面情緒總數: ${stats.negative} → ${negativeSum}`);
+    stats.negative = negativeSum;
+  }
+  if (stats.neutral !== neutralSum) {
+    Logger.log(`修正中性情緒總數: ${stats.neutral} → ${neutralSum}`);
+    stats.neutral = neutralSum;
+  }
+  
+  // 為向後兼容，保留舊的總數屬性名稱
+  stats.positiveEmotions = stats.positive;
+  stats.negativeEmotions = stats.negative;
+  stats.neutralEmotions = stats.neutral;
+  
+  Logger.log(`詳細情緒統計：正面(${stats.positive}=${positiveSum})：欣喜=${stats.delighted}, 感謝=${stats.grateful}, 印象深刻=${stats.impressed}, 滿意=${stats.satisfied}, 充滿希望=${stats.hopeful}`);
+  Logger.log(`負面(${stats.negative}=${negativeSum})：憤怒=${stats.angry}, 沮喪=${stats.frustrated}, 失望=${stats.disappointed}, 擔憂=${stats.worried}, 困惑=${stats.confused}`);
+  Logger.log(`中性(${stats.neutral}=${neutralSum})：事實陳述=${stats.factual}, 詢問=${stats.inquiring}, 提供信息=${stats.informative}`);
   
   // 使用 Gemini API 生成分析摘要
   let aiSummary = "AI 未能生成分析摘要。";
