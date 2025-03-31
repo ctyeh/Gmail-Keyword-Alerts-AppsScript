@@ -35,7 +35,7 @@ function analyzeEmailWithGemini(subject, body, from) {
     
     // 設定提示
     const prompt = `
-你是一個專門分析郵件問題的AI專家。請分析以下電子郵件，並判斷情緒類型及是否需要通知管理員。
+你是一個專門分析郵件問題的AI專家。請分析以下電子郵件，並判斷情緒類型、是否需要通知管理員，以及是否為活動廣告。
 
 詳細分析以下情緒類型：
 
@@ -67,6 +67,12 @@ function analyzeEmailWithGemini(subject, body, from) {
    - 明確指出服務持續當機或無法使用
    - 影響大量用戶或客戶的系統性問題
 
+並準確判斷郵件是否為活動廣告，具有下列特徵：
+1. 促銷活動、限時折扣、特價優惠等商業行銷內容
+2. 新產品發布、活動邀請、研討會通知等公告性質廣告
+3. 電子報、電子郵件行銷活動、促銷通知
+4. 非個人化的群發性商業訊息
+
 注意：一般業務流程中的小問題、單一客戶的個別問題、或可通過一般客服流程解決的問題不應被歸類為需要通知的重大問題。
 
 電子郵件內容：
@@ -80,6 +86,7 @@ ${contentToAnalyze}
   "primarySentiment": "positive"/"negative"/"neutral", // 主要情緒傾向
   "detailedEmotion": "delighted"/"grateful"/"impressed"/"satisfied"/"hopeful"/"angry"/"frustrated"/"disappointed"/"worried"/"confused"/"factual"/"inquiring"/"informative", // 詳細情緒類型
   "problemDetected": true/false, // 是否檢測到嚴重服務問題
+  "isPromotional": true/false, // 是否為活動廣告/促銷郵件
   "summary": "簡短摘要說明分析結果與原因，最多50字"
 }
 `;

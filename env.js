@@ -23,7 +23,8 @@ const EXCLUDED_DOMAINS = [
   "newsleopard.com", 
   "newsleopard.tw", 
   "softech.com.tw",
-  "calendly.com"
+  "calendly.com",
+  "gandi.net"
 ]; 
 
 // Slack設定

@@ -151,6 +151,20 @@ function processMessage(message, subject) {
     addLabel(message, KEYWORD_LABEL);
     Logger.log(`郵件標記為關鍵字符合 - 寄件者: ${from}, 主旨: ${subject}`);
     
+    // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
+    const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
+    const isPromotional = aiAnalysisResult && aiAnalysisResult.isPromotional === true;
+    
+    if (containsIdentityVerification) {
+      Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return; // 跳過通知發送
+    }
+    
+    if (isPromotional) {
+      Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return; // 跳過通知發送
+    }
+    
     // 準備通知內容
     const notifyKeywords = [...foundKeywords];
     if (aiDetected) {
@@ -171,6 +185,20 @@ function processMessage(message, subject) {
     // 標記為「AI 建議注意」
     addLabel(message, AI_ALERT_LABEL);
     Logger.log(`郵件標記為 AI 建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
+    
+    // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
+    const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
+    const isPromotional = aiAnalysisResult && aiAnalysisResult.isPromotional === true;
+    
+    if (containsIdentityVerification) {
+      Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return; // 跳過通知發送
+    }
+    
+    if (isPromotional) {
+      Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return; // 跳過通知發送
+    }
     
     // 如果沒有關鍵字觸發，則單獨發送 AI 檢測通知
     if (foundKeywords.length === 0) {
