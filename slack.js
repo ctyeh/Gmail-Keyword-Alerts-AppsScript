@@ -171,10 +171,14 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
   });
   
   // 發送到 Slack
-  sendToSlack(slackMessage);
+  const response = sendToSlack(slackMessage);
   
   // 記錄已發送通知
-  Logger.log(`發送通知：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
+  if (response) {
+    Logger.log(`發送通知成功：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
+  } else {
+    Logger.log(`發送通知失敗：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
+  }
 }
 
 /**
@@ -259,6 +263,10 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
   };
   
   // 發送到 Slack
-  sendToSlack(slackMessage);
-  Logger.log(`每日統計報告已發送到 Slack`);
+  const response = sendToSlack(slackMessage);
+  if (response) {
+    Logger.log(`每日統計報告已成功發送到 Slack`);
+  } else {
+    Logger.log(`每日統計報告發送到 Slack失敗`);
+  }
 }
