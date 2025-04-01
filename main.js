@@ -41,39 +41,78 @@ function buildGeneralQuery() {
  * 此函數作為主要入口點，被觸發器定期調用
  */
 function checkGmailAndNotifySlack() {
+  Logger.log("開始執行郵件檢查與通知功能");
+  
   // 獲取所有新郵件（不受關鍵字限制）
   const generalQuery = buildGeneralQuery();
   const allNewThreads = GmailApp.search(generalQuery, 0, 50);
   
-  Logger.log(`找到 ${allNewThreads.length} 封新郵件需要分析`);
+  Logger.log(`找到 ${allNewThreads.length} 個討論串需要分析`);
   
   // 如果沒有找到新郵件，則結束
   if (allNewThreads.length === 0) {
-    Logger.log("沒有找到新郵件需要分析");
+    Logger.log("沒有找到新討論串需要分析");
+    Logger.log("執行完畢 - 無需處理任何郵件");
     return;
   }
 
   // 處理每個新郵件討論串
-  processThreads(allNewThreads);
+  const stats = processThreads(allNewThreads);
+  
+  // 記錄執行統計
+  Logger.log(`執行完畢 - 統計資訊：總共掃描 ${stats.totalThreads} 個討論串，包含 ${stats.totalMessages} 封郵件，` +
+             `其中 ${stats.alreadyProcessed} 封已處理（跳過），實際處理了 ${stats.newlyProcessed} 封新郵件，` +
+             `發送了 ${stats.notificationsSent} 個通知`);
 }
 
 /**
  * 處理郵件討論串
  * 
  * @param {Array<GmailThread>} threads - Gmail 討論串陣列
+ * @return {Object} 處理統計資訊
  */
 function processThreads(threads) {
+  // 統計資訊
+  const stats = {
+    totalThreads: threads.length,
+    totalMessages: 0,
+    alreadyProcessed: 0,
+    newlyProcessed: 0,
+    notificationsSent: 0
+  };
+  
   for (const thread of threads) {
     const messages = thread.getMessages();
     const subject = thread.getFirstMessageSubject();
     
+    Logger.log(`處理討論串：${subject}，包含 ${messages.length} 封郵件`);
+    stats.totalMessages += messages.length;
+    
+    let threadStats = {
+      processed: 0,
+      skipped: 0
+    };
+    
     for (const message of messages) {
-      // 只檢查郵件是否已經被處理過
+      // 檢查郵件是否已經被處理過
       if (!hasLabel(message, CHECKED_LABEL)) {
-        processMessage(message, subject);
+        threadStats.processed++;
+        stats.newlyProcessed++;
+        const notificationSent = processMessage(message, subject);
+        if (notificationSent) {
+          stats.notificationsSent++;
+        }
+      } else {
+        threadStats.skipped++;
+        stats.alreadyProcessed++;
+        //Logger.log(`跳過已處理郵件：寄件者 ${message.getFrom()}，主旨：${subject}`);
       }
     }
+    
+    Logger.log(`討論串處理完成：${subject}，處理了 ${threadStats.processed} 封新郵件，跳過了 ${threadStats.skipped} 封已處理郵件`);
   }
+  
+  return stats;
 }
 
 /**
@@ -81,8 +120,10 @@ function processThreads(threads) {
  * 
  * @param {GmailMessage} message - Gmail 郵件對象
  * @param {String} subject - 郵件主旨
+ * @return {Boolean} 是否發送了通知
  */
 function processMessage(message, subject) {
+  let notificationSent = false;
   const from = message.getFrom();
   const date = message.getDate();
   const body = message.getPlainBody();
@@ -222,7 +263,11 @@ function processMessage(message, subject) {
   // 如果既無關鍵字也無 AI 檢測，則只標記為已檢查
   if (foundKeywords.length === 0 && !aiDetected) {
     Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
+  } else {
+    notificationSent = true;
   }
+  
+  return notificationSent;
 }
 
 /**
