@@ -190,8 +190,16 @@ function processMessage(message, subject) {
     const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
     const isPromotional = aiAnalysisResult && aiAnalysisResult.isPromotional === true;
     
+    // 檢查是否包含「簡訊網域申請」或「簡訊白名單申請」關鍵字
+    const containsSmsKeywords = actualBody.includes("簡訊網域申請") || actualBody.includes("簡訊白名單申請");
+    
     if (containsIdentityVerification) {
       Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return; // 跳過通知發送
+    }
+    
+    if (containsSmsKeywords) {
+      Logger.log(`郵件包含「簡訊網域申請」或「簡訊白名單申請」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
       return; // 跳過通知發送
     }
     
