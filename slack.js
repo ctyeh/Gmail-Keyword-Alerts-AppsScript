@@ -31,9 +31,11 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "type": "header",
         "text": {
           "type": "plain_text",
-          "text": aiAnalysisResult && aiAnalysisResult.shouldNotify && foundKeywords.length === 0 
-            ? "🤖 AI 判定建議注意郵件" 
-            : "📨 關鍵字比對 注意郵件",
+          "text": foundKeywords.length > 0 && aiAnalysisResult && aiAnalysisResult.shouldNotify
+            ? "⚠️ 關鍵字+AI 雙重警示郵件"
+            : (foundKeywords.length > 0
+               ? "📨 關鍵字比對 注意郵件"
+               : "🤖 AI 判定建議注意郵件"),
           "emoji": true
         }
       },
@@ -41,9 +43,25 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": foundKeywords.length > 0 
-            ? `*發現關鍵字：* ${foundKeywords.join(', ')}` 
-            : `*AI 判定需要注意的郵件*`
+          "text": (() => {
+            // 檢查是否包含真實關鍵字（排除 AI 檢測標記）
+            const realKeywords = foundKeywords.filter(kw => kw !== "AI 檢測到需注意內容" && kw !== "AI 也檢測到需注意內容");
+            
+            if (realKeywords.length > 0) {
+              // 顯示真實關鍵字
+              const keywordText = `*發現關鍵字：* ${realKeywords.join(', ')}`;
+              
+              // 檢查是否同時有 AI 檢測
+              const hasAiDetection = foundKeywords.some(kw => kw === "AI 檢測到需注意內容" || kw === "AI 也檢測到需注意內容");
+              
+              return hasAiDetection 
+                ? `${keywordText}\n*AI 分析：* AI 也檢測到需注意內容` 
+                : keywordText;
+            } else {
+              // 僅 AI 檢測
+              return `*AI 判定需要注意的郵件*`;
+            }
+          })()
         }
       },
       {
