@@ -19,11 +19,10 @@
  * @param {String} fullBody - 完整郵件內容
  * @param {String} actualBody - 實際郵件內容(排除引用)
  * @param {String} link - Gmail 郵件鏈接
- * @param {Array<String>} foundKeywords - 發現的關鍵字列表
- * @param {Object|null} aiAnalysisResult - AI 分析結果
+ * @param {Object} emailAnalysis - 郵件分析結果對象
  * @param {GmailMessage} message - Gmail 郵件對象
  */
-function sendNotification(subject, from, date, fullBody, actualBody, link, foundKeywords, aiAnalysisResult, message) {
+function sendNotification(subject, from, date, fullBody, actualBody, link, emailAnalysis, message) {
   // 建立 Slack 通知
   const slackMessage = {
     "blocks": [
@@ -31,9 +30,9 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "type": "header",
         "text": {
           "type": "plain_text",
-          "text": foundKeywords.length > 0 && aiAnalysisResult && aiAnalysisResult.shouldNotify
+          "text": emailAnalysis.keywordsFound.length > 0 && emailAnalysis.aiDetected
             ? "⚠️ 關鍵字+AI 雙重警示郵件"
-            : (foundKeywords.length > 0
+            : (emailAnalysis.keywordsFound.length > 0
                ? "📨 關鍵字比對 注意郵件"
                : "🤖 AI 判定建議注意郵件"),
           "emoji": true
@@ -44,17 +43,12 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
         "text": {
           "type": "mrkdwn",
           "text": (() => {
-            // 檢查是否包含真實關鍵字（排除 AI 檢測標記）
-            const realKeywords = foundKeywords.filter(kw => kw !== "AI 檢測到需注意內容" && kw !== "AI 也檢測到需注意內容");
-            
-            if (realKeywords.length > 0) {
-              // 顯示真實關鍵字
-              const keywordText = `*發現關鍵字：* ${realKeywords.join(', ')}`;
+            if (emailAnalysis.keywordsFound.length > 0) {
+              // 顯示關鍵字
+              const keywordText = `*發現關鍵字：* ${emailAnalysis.keywordsFound.join(', ')}`;
               
               // 檢查是否同時有 AI 檢測
-              const hasAiDetection = foundKeywords.some(kw => kw === "AI 檢測到需注意內容" || kw === "AI 也檢測到需注意內容");
-              
-              return hasAiDetection 
+              return emailAnalysis.aiDetected
                 ? `${keywordText}\n*AI 分析：* AI 也檢測到需注意內容` 
                 : keywordText;
             } else {
@@ -92,7 +86,7 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
   };
   
   // 如果有 AI 分析結果，添加到通知中並凸顯
-  if (aiAnalysisResult) {
+  if (emailAnalysis.aiAnalysisResult) {
     // 添加分隔線
     slackMessage.blocks.push({
       "type": "divider"
@@ -140,7 +134,7 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
     };
     
     // 取得情緒類型並轉換為繁體中文
-    const mainEmotion = aiAnalysisResult.primarySentiment || aiAnalysisResult.sentiment || "unknown";
+    const mainEmotion = emailAnalysis.aiAnalysisResult.primarySentiment || emailAnalysis.aiAnalysisResult.sentiment || "unknown";
     const mainEmotionText = mainEmotionMap[mainEmotion] || "未知";
     let emotionIcon = "❓";
     if (mainEmotion === "positive") emotionIcon = "😊";
@@ -156,9 +150,9 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
     
     // 顯示詳細情緒類型
     let detailedEmotionText = "";
-    if (aiAnalysisResult.detailedEmotion) {
-      const detailedIcon = detailedEmotionIcons[aiAnalysisResult.detailedEmotion] || "❓";
-      const detailedEmotionChinese = detailedEmotionMap[aiAnalysisResult.detailedEmotion] || aiAnalysisResult.detailedEmotion;
+    if (emailAnalysis.aiAnalysisResult.detailedEmotion) {
+      const detailedIcon = detailedEmotionIcons[emailAnalysis.aiAnalysisResult.detailedEmotion] || "❓";
+      const detailedEmotionChinese = detailedEmotionMap[emailAnalysis.aiAnalysisResult.detailedEmotion] || emailAnalysis.aiAnalysisResult.detailedEmotion;
       detailedEmotionText = `\n> *詳細情緒：* ${detailedIcon} ${detailedEmotionChinese}`;
     }
     
@@ -167,7 +161,7 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotionText}${detailedEmotionText}\n> *問題檢測：* ${aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${aiAnalysisResult.summary}`
+        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotionText}${detailedEmotionText}\n> *問題檢測：* ${emailAnalysis.aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${emailAnalysis.aiAnalysisResult.summary}`
       }
     });
   }
@@ -193,9 +187,12 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, found
   
   // 記錄已發送通知
   if (response) {
-    Logger.log(`發送通知成功：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
+    const notificationContent = emailAnalysis.keywordsFound.length > 0 
+      ? `包含關鍵字「${emailAnalysis.keywordsFound.join(', ')}」` 
+      : `由 AI 檢測觸發`;
+    Logger.log(`發送通知成功：「${subject}」${notificationContent} - 寄件者: ${from}`);
   } else {
-    Logger.log(`發送通知失敗：「${subject}」包含關鍵字「${foundKeywords.join(', ')}」- 寄件者: ${from}`);
+    Logger.log(`發送通知失敗：「${subject}」- 寄件者: ${from}`);
   }
 }
 

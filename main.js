@@ -157,27 +157,32 @@ function processMessage(message, subject) {
     Logger.log(`在郵件中發現關鍵字: ${foundKeywords.join(', ')} - 寄件者: ${from}, 主旨: ${subject}`);
   }
   
+  // 創建郵件分析結果對象，清晰區分不同檢測類型
+  const emailAnalysis = {
+    keywordsFound: foundKeywords,   // 實際找到的關鍵字
+    aiDetected: false,              // AI 是否檢測到需注意內容
+    aiAnalysisResult: null          // 完整的 AI 分析結果
+  };
+  
   // 使用 Gemini API 分析郵件內容
-  let aiAnalysisResult = null;
-  let aiDetected = false;
   if (USE_GEMINI_API) {
     Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
-    aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
+    emailAnalysis.aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
     
     // 將情緒分析結果存儲到 Properties 服務
-    if (aiAnalysisResult) {
-      storeEmotionAnalysisResult(message, aiAnalysisResult);
+    if (emailAnalysis.aiAnalysisResult) {
+      storeEmotionAnalysisResult(message, emailAnalysis.aiAnalysisResult);
     }
     
     // 標記 AI 是否檢測到需注意的內容
-    if (aiAnalysisResult && aiAnalysisResult.shouldNotify) {
-      aiDetected = true;
+    if (emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.shouldNotify) {
+      emailAnalysis.aiDetected = true;
       Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
     }
   }
   
   // 記錄郵件分析結果到日誌
-  logEmailAnalysisResult(message, subject, from, foundKeywords, aiAnalysisResult);
+  logEmailAnalysisResult(message, subject, from, foundKeywords, emailAnalysis.aiAnalysisResult);
   
   // 處理標籤和通知
   
@@ -185,42 +190,28 @@ function processMessage(message, subject) {
   addLabel(message, CHECKED_LABEL);
   
   // 檢查是否符合關鍵字，標記並嘗試發送通知
-  if (foundKeywords.length > 0) {
+  if (emailAnalysis.keywordsFound.length > 0) {
     // 標記為「關鍵字符合」
     addLabel(message, KEYWORD_LABEL);
     Logger.log(`郵件標記為關鍵字符合 - 寄件者: ${from}, 主旨: ${subject}`);
     
     // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
-    const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
-    const isPromotional = aiAnalysisResult && aiAnalysisResult.isPromotional === true;
+    const containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
+    const isPromotional = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.isPromotional === true;
     
     if (containsIdentityVerification) {
       Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return; // 跳過通知發送
+      return false; // 跳過通知發送
     }
     
     if (isPromotional) {
       Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return; // 跳過通知發送
-    }
-    
-    // 準備通知內容
-    const notifyKeywords = [...foundKeywords];
-    if (aiDetected) {
-      notifyKeywords.push("AI 也檢測到需注意內容");
-    }
-    
-    // 嘗試發送 Slack 通知
-    try {
-      sendNotification(subject, from, date, body, actualBody, link, notifyKeywords, aiAnalysisResult, message);
-      Logger.log(`已發送關鍵字通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
-    } catch (error) {
-      Logger.log(`發送關鍵字通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
+      return false; // 跳過通知發送
     }
   }
   
-  // 檢查 AI 是否檢測到需注意內容，標記並嘗試發送通知
-  if (aiDetected) {
+  // 檢查 AI 是否檢測到需注意內容，標記
+  if (emailAnalysis.aiDetected) {
     // 只有非排除網域的郵件才添加「AI 建議注意」標籤
     if (!isExcludedDomain) {
       // 標記為「AI 建議注意」
@@ -230,44 +221,44 @@ function processMessage(message, subject) {
       Logger.log(`郵件被 AI 檢測為需注意，但來自排除網域，不添加標籤 - 寄件者: ${from}, 主旨: ${subject}`);
     }
     
-    // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
-    const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
-    const isPromotional = aiAnalysisResult && aiAnalysisResult.isPromotional === true;
+    // 檢查是否為活動廣告或包含關鍵字，如果是則不發送通知
+    const containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
+    const isPromotional = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.isPromotional === true;
     
     // 檢查是否包含「簡訊網域申請」或「簡訊白名單申請」關鍵字
     const containsSmsKeywords = actualBody.includes("簡訊網域申請") || actualBody.includes("簡訊白名單申請");
     
     if (containsIdentityVerification) {
       Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return; // 跳過通知發送
+      return false; // 跳過通知發送
     }
     
     if (containsSmsKeywords) {
       Logger.log(`郵件包含「簡訊網域申請」或「簡訊白名單申請」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return; // 跳過通知發送
+      return false; // 跳過通知發送
     }
     
     if (isPromotional) {
       Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return; // 跳過通知發送
-    }
-    
-    // 如果沒有關鍵字觸發，則單獨發送 AI 檢測通知
-    if (foundKeywords.length === 0) {
-      try {
-        sendNotification(subject, from, date, body, actualBody, link, ["AI 檢測到需注意內容"], aiAnalysisResult, message);
-        Logger.log(`已發送 AI 檢測通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
-      } catch (error) {
-        Logger.log(`發送 AI 檢測通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
-      }
+      return false; // 跳過通知發送
     }
   }
   
-  // 如果既無關鍵字也無 AI 檢測，則只標記為已檢查
-  if (foundKeywords.length === 0 && !aiDetected) {
-    Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
+  // 決定是否發送通知（有關鍵字或AI檢測）
+  let shouldNotify = emailAnalysis.keywordsFound.length > 0 || emailAnalysis.aiDetected;
+  
+  // 發送通知
+  if (shouldNotify) {
+    try {
+      // 發送完整的分析結果對象，而不是修改關鍵字陣列
+      sendNotification(subject, from, date, body, actualBody, link, emailAnalysis, message);
+      Logger.log(`已發送通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
+      notificationSent = true;
+    } catch (error) {
+      Logger.log(`發送通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
+    }
   } else {
-    notificationSent = true;
+    Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
   }
   
   return notificationSent;
