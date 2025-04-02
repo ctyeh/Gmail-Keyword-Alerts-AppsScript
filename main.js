@@ -164,7 +164,6 @@ function processMessage(message, subject) {
     aiAnalysisResult: null          // 完整的 AI 分析結果
   };
   
-  // 使用 Gemini API 分析郵件內容
   if (USE_GEMINI_API) {
     Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
     emailAnalysis.aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
@@ -172,13 +171,23 @@ function processMessage(message, subject) {
     // 將情緒分析結果存儲到 Properties 服務
     if (emailAnalysis.aiAnalysisResult) {
       storeEmotionAnalysisResult(message, emailAnalysis.aiAnalysisResult);
+      
+      // 統一判斷標準：若problemDetected為true，則shouldNotify也應為true
+      if (emailAnalysis.aiAnalysisResult.problemDetected && !emailAnalysis.aiAnalysisResult.shouldNotify) {
+        Logger.log(`發現不一致判斷：problemDetected=true 但 shouldNotify=false，強制設置shouldNotify=true - 寄件者: ${from}, 主旨: ${subject}`);
+        emailAnalysis.aiAnalysisResult.shouldNotify = true;
+      }
+      
+      // 標記 AI 是否檢測到需注意的內容
+      if (emailAnalysis.aiAnalysisResult.shouldNotify) {
+        emailAnalysis.aiDetected = true;
+        Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
+      }
+    } else {
+      Logger.log(`AI分析未返回結果，郵件將不被標記為AI建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
     }
-    
-    // 標記 AI 是否檢測到需注意的內容
-    if (emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.shouldNotify) {
-      emailAnalysis.aiDetected = true;
-      Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
-    }
+  } else {
+    Logger.log(`USE_GEMINI_API設置為false，跳過AI分析 - 寄件者: ${from}, 主旨: ${subject}`);
   }
   
   // 記錄郵件分析結果到日誌
@@ -261,6 +270,14 @@ function processMessage(message, subject) {
     Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
   }
   
+  // 記錄郵件處理決策的摘要
+  Logger.log(`處理摘要 - 郵件ID: ${message.getId()}, 寄件者: ${from}, 主旨: ${subject}` + 
+             `, 關鍵字匹配: ${emailAnalysis.keywordsFound.length > 0}` +
+             `, AI檢測: ${emailAnalysis.aiDetected}` + 
+             `, 發送通知: ${notificationSent}` +
+             `, 排除網域: ${isExcludedDomain}` +
+             `, 轉寄郵件: ${isForwarded}`);
+             
   return notificationSent;
 }
 

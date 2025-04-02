@@ -16,6 +16,55 @@
  * 每日郵件統計與關鍵字報告
  * 搭配 Properties 服務存儲當日郵件情緒分析結果
  */
+/**
+ * 新增此函數，用於計算實際進行AI分析的郵件總數
+ * 
+ * @param {Boolean} [includeWeekend=false] - 是否包含週末數據（週一報表使用）
+ * @return {Number} - 郵件數量
+ */
+function countAnalyzedEmails(includeWeekend = false) {
+  // 獲取特定時間範圍內存儲在Properties中的AI分析結果數量
+  try {
+    const today = new Date();
+    let dateStrings = [];
+    
+    if (includeWeekend) {
+      // 週一報表：獲取週六到今天的日期
+      const saturday = new Date(today);
+      saturday.setDate(today.getDate() - 2);
+      const sunday = new Date(today);
+      sunday.setDate(today.getDate() - 1);
+      
+      dateStrings = [
+        Utilities.formatDate(saturday, Session.getScriptTimeZone(), "yyyy-MM-dd"),
+        Utilities.formatDate(sunday, Session.getScriptTimeZone(), "yyyy-MM-dd"),
+        Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd")
+      ];
+    } else {
+      dateStrings = [Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd")];
+    }
+    
+    // 計算存儲的情緒分析結果數量
+    const props = PropertiesService.getScriptProperties().getProperties();
+    let count = 0;
+    
+    for (const key in props) {
+      for (const dateString of dateStrings) {
+        if (key.startsWith(dateString + "_email_")) {
+          count++;
+          break;
+        }
+      }
+    }
+    
+    Logger.log(`計算完成：實際進行AI分析的郵件數量為 ${count} 封`);
+    return count;
+  } catch (error) {
+    Logger.log(`計算AI分析郵件數量時出錯：${error.toString()}`);
+    return 0;
+  }
+}
+
 function dailyStatisticsReport() {
   // 獲取今天的日期
   const today = new Date();
@@ -56,7 +105,8 @@ function dailyStatisticsReport() {
   const stats = {
     totalEmails: countCheckedEmails(isMonday),
     keywordTriggeredEmails: countKeywordTriggeredEmails(isMonday),
-    aiTriggeredEmails: countAITriggeredEmails(isMonday), // 新增 AI 觸發郵件統計
+    aiTriggeredEmails: countAITriggeredEmails(isMonday), // AI 觸發郵件統計
+    aiAnalyzedEmails: countAnalyzedEmails(isMonday), // 新增：實際進行AI分析的郵件數
     positive: 0,      // 正面情緒總數
     negative: 0,      // 負面情緒總數
     neutral: 0,       // 中性情緒總數

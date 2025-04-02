@@ -231,8 +231,17 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `• 檢查郵件總數: ${stats.totalEmails}\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}\n• AI 檢測觸發郵件數: ${stats.aiTriggeredEmails || 0}`
+          "text": `• 檢查郵件總數: ${stats.totalEmails}\n• 實際進行AI分析的郵件數: ${stats.aiAnalyzedEmails} (${calculatePercentage(stats.aiAnalyzedEmails, stats.totalEmails)}%)\n• 觸發關鍵字的郵件數: ${stats.keywordTriggeredEmails}\n• AI建議注意的郵件數: ${stats.aiTriggeredEmails}\n• AI檢測到問題的郵件數: ${stats.problemDetected}`
         }
+      },
+      {
+        "type": "context",
+        "elements": [
+          {
+            "type": "mrkdwn",
+            "text": "*指標說明*\n• 檢查郵件總數：所有被標記為「監控-已檢查」的郵件\n• 實際進行AI分析的郵件數：成功執行情緒分析的郵件\n• AI建議注意的郵件數：AI判斷為`shouldNotify=true`的郵件\n• AI檢測到問題的郵件數：AI判斷為`problemDetected=true`的郵件"
+          }
+        ]
       },
       {
         "type": "section",

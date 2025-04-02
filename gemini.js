@@ -75,6 +75,8 @@ function analyzeEmailWithGemini(subject, body, from) {
 
 注意：一般業務流程中的小問題、單一客戶的個別問題、或可通過一般客服流程解決的問題不應被歸類為需要通知的重大問題。
 
+注意：若郵件內容符合上述第2點中任一項，則同時應設置「problemDetected=true」和「shouldNotify=true」，兩者必須一致。若只是極端情緒但無系統問題，則設置「shouldNotify=true」但「problemDetected=false」。
+
 電子郵件內容：
 """
 ${contentToAnalyze}
@@ -146,7 +148,14 @@ ${contentToAnalyze}
             jsonResult.primarySentiment = jsonResult.sentiment;
           }
           
-          Logger.log(`Gemini 分析結果 - shouldNotify: ${jsonResult.shouldNotify}, primarySentiment: ${jsonResult.primarySentiment}, detailedEmotion: ${jsonResult.detailedEmotion || "未指定"}, problemDetected: ${jsonResult.problemDetected} - 寄件者: ${from}, 主旨: ${subject}`);
+          // 記錄詳細的分析結果
+          Logger.log(`Gemini 分析結果 - shouldNotify: ${jsonResult.shouldNotify}, primarySentiment: ${jsonResult.primarySentiment}, detailedEmotion: ${jsonResult.detailedEmotion || "未指定"}, problemDetected: ${jsonResult.problemDetected}, isPromotional: ${jsonResult.isPromotional || false} - 寄件者: ${from}, 主旨: ${subject}`);
+          
+          // 檢查判斷一致性
+          if (jsonResult.problemDetected && !jsonResult.shouldNotify) {
+            Logger.log(`⚠️ 警告：AI返回不一致判斷 - problemDetected=true 但 shouldNotify=false - 寄件者: ${from}, 主旨: ${subject}`);
+          }
+          
           return jsonResult;
         } catch (parseError) {
           Logger.log(`解析 JSON 時出錯: ${parseError.toString()}, 原始文本: ${text} - 寄件者: ${from}, 主旨: ${subject}`);
