@@ -132,12 +132,10 @@ function processMessage(message, subject) {
   // 記錄開始分析的郵件
   Logger.log(`開始分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
   
-  // 檢查寄件者是否來自排除的網域，如果是則標記為已檢查並跳過
-  if (isFromExcludedDomain(from)) {
-    Logger.log(`跳過來自排除網域的郵件: ${from}, 主旨: ${subject}`);
-    // 為排除網域的郵件也添加「已檢查」標籤，避免重複處理
-    addLabel(message, CHECKED_LABEL);
-    return; // 跳過這封郵件的處理
+  // 檢查寄件者是否來自排除的網域
+  const isExcludedDomain = isFromExcludedDomain(from);
+  if (isExcludedDomain) {
+    Logger.log(`郵件來自排除網域: ${from}, 主旨: ${subject}`);
   }
   
   // 檢查是否為轉寄郵件
@@ -223,9 +221,14 @@ function processMessage(message, subject) {
   
   // 檢查 AI 是否檢測到需注意內容，標記並嘗試發送通知
   if (aiDetected) {
-    // 標記為「AI 建議注意」
-    addLabel(message, AI_ALERT_LABEL);
-    Logger.log(`郵件標記為 AI 建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
+    // 只有非排除網域的郵件才添加「AI 建議注意」標籤
+    if (!isExcludedDomain) {
+      // 標記為「AI 建議注意」
+      addLabel(message, AI_ALERT_LABEL);
+      Logger.log(`郵件標記為 AI 建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
+    } else {
+      Logger.log(`郵件被 AI 檢測為需注意，但來自排除網域，不添加標籤 - 寄件者: ${from}, 主旨: ${subject}`);
+    }
     
     // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
     const containsIdentityVerification = foundKeywords.includes("申請寄件者身份驗證");
