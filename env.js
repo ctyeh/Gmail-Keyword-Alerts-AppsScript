@@ -54,6 +54,7 @@ function getGeminiApiKey() {
 }
 
 const USE_GEMINI_API = true; // 設置為 false 可暫時停用 Gemini API 功能
+const ENABLE_SLACK_NOTIFICATIONS = true; // 設置為 false 可暫時停用所有 Slack 通知
 const GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"; // 最新的模型名稱
 
 // 導出環境設置以便其他模組使用

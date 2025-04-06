@@ -182,6 +182,12 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, email
     ]
   });
   
+  // 檢查是否啟用 Slack 通知
+  if (!ENABLE_SLACK_NOTIFICATIONS) {
+    Logger.log(`Slack 通知已停用，跳過通知發送：「${subject}」- 寄件者: ${from}`);
+    return;
+  }
+  
   // 發送到 Slack
   const response = sendToSlack(slackMessage);
   
@@ -285,6 +291,12 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
       }
     ]
   };
+  
+  // 檢查是否啟用 Slack 通知
+  if (!ENABLE_SLACK_NOTIFICATIONS) {
+    Logger.log(`Slack 通知已停用，跳過每日統計報告發送`);
+    return;
+  }
   
   // 發送到 Slack
   const response = sendToSlack(slackMessage);
