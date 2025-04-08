@@ -43,23 +43,20 @@ function buildGeneralQuery() {
 function checkGmailAndNotifySlack() {
   Logger.log("開始執行郵件檢查與通知功能");
   
-  // 獲取所有新郵件（不受關鍵字限制）
   const generalQuery = buildGeneralQuery();
   const allNewThreads = GmailApp.search(generalQuery, 0, 50);
   
   Logger.log(`找到 ${allNewThreads.length} 個討論串需要分析`);
   
-  // 如果沒有找到新郵件，則結束
   if (allNewThreads.length === 0) {
     Logger.log("沒有找到新討論串需要分析");
     Logger.log("執行完畢 - 無需處理任何郵件");
     return;
   }
 
-  // 處理每個新郵件討論串
+  // 調用模組
   const stats = processThreads(allNewThreads);
   
-  // 記錄執行統計
   Logger.log(`執行完畢 - 統計資訊：總共掃描 ${stats.totalThreads} 個討論串，包含 ${stats.totalMessages} 封郵件，` +
              `其中 ${stats.alreadyProcessed} 封已處理（跳過），實際處理了 ${stats.newlyProcessed} 封新郵件，` +
              `發送了 ${stats.notificationsSent} 個通知`);
@@ -319,39 +316,8 @@ function processMessage(message, subject) {
  * 設定觸發器 (需要手動運行一次此函數來設定定時觸發)
  */
 function setUpTrigger() {
-  // 刪除現有的觸發器，以避免重複
-  const triggers = ScriptApp.getProjectTriggers();
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === "checkGmailAndNotifySlack" || 
-        trigger.getHandlerFunction() === "dailyStatisticsReport" ||
-        trigger.getHandlerFunction() === "clearOldEmotionData") {
-      ScriptApp.deleteTrigger(trigger);
-    }
-  }
-  
-  // 設定每 5 分鐘執行一次郵件檢查
-  ScriptApp.newTrigger("checkGmailAndNotifySlack")
-    .timeBased()
-    .everyMinutes(5)
-    .create();
-  
-  // 設定每天下午 5:30 執行統計報告
-  ScriptApp.newTrigger("dailyStatisticsReport")
-    .timeBased()
-    .atHour(17)
-    .nearMinute(30)
-    .everyDays(1)
-    .create();
-  
-  // 設定每天凌晨清除前一天的情緒數據
-  ScriptApp.newTrigger("clearOldEmotionData")
-    .timeBased()
-    .atHour(0)
-    .nearMinute(30)
-    .everyDays(1)
-    .create();
-  
-  Logger.log("已設定所有觸發器");
+  // 調用模組
+  setUpTrigger();
 }
 
 /**

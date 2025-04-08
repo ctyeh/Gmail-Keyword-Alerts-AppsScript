@@ -1,0 +1,17 @@
+{
+  "name": "gmail-gemini-slack-gas",
+  "version": "1.0.0",
+  "description": "Gmail + Gemini + Slack Google Apps Script",
+  "scripts": {
+    "babel": "babel ./modules ./main.js ./env.js ./gmail.js ./slack.js ./statistics.js ./utils.js --out-dir lib --extensions \".js\" --copy-files",
+    "build": "npm run babel && node esbuild.config.js",
+    "copy": "cp dist/bundle.js src/Code.js",
+    "deploy": "npm run build && npm run copy && clasp push"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.27.0",
+    "@babel/core": "^7.26.10",
+    "@babel/preset-env": "^7.26.9",
+    "esbuild": "^0.19.12"
+  }
+}
