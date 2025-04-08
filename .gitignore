@@ -2,3 +2,4 @@ node_modules/*
 lib/
 dist/
 backup/
+src/Code.js
