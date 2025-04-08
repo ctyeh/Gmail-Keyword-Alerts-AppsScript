@@ -3,3 +3,49 @@ lib/
 dist/
 backup/
 src/Code.js
+
+# IDE 與編輯器相關
+.idea/
+.vscode/
+*.sublime-*
+.DS_Store
+
+# 環境設定檔
+.env
+.env.local
+.env.*.local
+
+# 日誌
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 快取
+.cache/
+.npm/
+.eslintcache
+
+# 建置過程產生的臨時檔案
+.tmp/
+temp/
+
+# Apps Script 特定檔案
+.clasp.json
+.clasprc.json
+
+# 環境特定檔案 (但保留目錄結構)
+prod/credentials.json
+prod/token.json
+prod/.clasp.json
+prod/config.secret.js
+prod/dist/
+prod/src/Code.js
+
+test/credentials.json
+test/token.json
+test/.clasp.json
+test/config.secret.js
+test/dist/
+test/src/Code.js
+common/src/Code.js
