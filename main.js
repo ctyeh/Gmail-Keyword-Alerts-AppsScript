@@ -128,6 +128,20 @@ function processMessage(message, subject) {
   const date = message.getDate();
   const body = message.getPlainBody();
   const link = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
+
+  // 預先宣告忽略條件變數
+  let isMailgunVerification = 
+    from.includes('support@mailgun.net') &&
+    subject.startsWith('Good news -') &&
+    subject.endsWith('is now verified');
+  let containsIdentityVerification = body.includes("申請寄件者身份驗證");
+  let containsSmsKeywords = body.includes("簡訊網域申請") || body.includes("簡訊白名單申請");
+
+  // === 完全忽略三類信件，避免標籤、通知、統計、AI分析 ===
+  if (isMailgunVerification || containsIdentityVerification || containsSmsKeywords) {
+    Logger.log(`完全忽略信件（不標籤、不通知、不統計）- 寄件者: ${from}, 主旨: ${subject}`);
+    return false;
+  }
   
   // 記錄開始分析的郵件
   Logger.log(`開始分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
@@ -208,6 +222,11 @@ function processMessage(message, subject) {
     const containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
     const isPromotional = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.isPromotional === true;
     
+    if (isMailgunVerification) {
+      Logger.log(`忽略 Mailgun 域名驗證成功通知 - 寄件者: ${from}, 主旨: ${subject}`);
+      return false; // 跳過通知發送
+    }
+
     if (containsIdentityVerification) {
       Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
       return false; // 跳過通知發送
@@ -255,6 +274,21 @@ function processMessage(message, subject) {
   
   // 決定是否發送通知（有關鍵字或AI檢測）
   let shouldNotify = emailAnalysis.keywordsFound.length > 0 || emailAnalysis.aiDetected;
+
+  // 強制忽略身份驗證、白名單、Mailgun 驗證信，即使 AI 判定有問題也不通知
+    isMailgunVerification = 
+      from.includes('support@mailgun.net') &&
+      subject.startsWith('Good news -') &&
+      subject.endsWith('is now verified');
+    containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
+    containsSmsKeywords = actualBody.includes("簡訊網域申請") || actualBody.includes("簡訊白名單申請");
+
+    const shouldForceIgnore = isMailgunVerification || containsIdentityVerification || containsSmsKeywords;
+
+    if (shouldForceIgnore) {
+      Logger.log(`忽略信件（即使 AI 判定有問題）- 寄件者: ${from}, 主旨: ${subject}`);
+      return false;
+    }
   
   // 發送通知
   if (shouldNotify) {
