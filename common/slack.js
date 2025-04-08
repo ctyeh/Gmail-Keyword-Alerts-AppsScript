@@ -245,7 +245,7 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "elements": [
           {
             "type": "mrkdwn",
-            "text": "*指標說明*\n• 檢查郵件總數：所有被標記為「監控-已檢查」的郵件\n• 實際進行AI分析的郵件數：成功執行情緒分析的郵件\n• AI建議注意的郵件數：AI判斷為`shouldNotify=true`的郵件\n• AI檢測到問題的郵件數：AI判斷為`problemDetected=true`的郵件"
+            "text": "*指標說明*\n• 檢查郵件總數：所有被標記為「監控-已檢查」的郵件\n• 實際進行AI分析的郵件數：成功執行情緒分析的郵件\n•"
           }
         ]
       },
@@ -267,7 +267,7 @@ function sendDailyStatisticsToSlack(stats, aiSummary) {
         "type": "section",
         "text": {
           "type": "mrkdwn",
-          "text": `• 中性情緒: ${stats.neutralEmotions} (${calculatePercentage(stats.neutralEmotions, stats.totalEmails)}%)\n  - 📝 事實陳述: ${stats.factual || 0}\n  - 🔍 詢問: ${stats.inquiring || 0}\n  - ℹ️ 提供信息: ${stats.informative || 0}\n\n• 檢測到問題的郵件數: ${stats.problemDetected} (${calculatePercentage(stats.problemDetected, stats.totalEmails)}%)`
+          "text": `• 中性情緒: ${stats.neutralEmotions} (${calculatePercentage(stats.neutralEmotions, stats.totalEmails)}%)\n  - 📝 事實陳述: ${stats.factual || 0}\n  - 🔍 詢問: ${stats.inquiring || 0}\n  - ℹ️ 提供信息: ${stats.informative || 0}\n\n•`
         }
       },
       {
