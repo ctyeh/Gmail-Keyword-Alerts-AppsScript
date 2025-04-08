@@ -57,6 +57,9 @@ const USE_GEMINI_API = true; // 設置為 false 可暫時停用 Gemini API 功�
 const ENABLE_SLACK_NOTIFICATIONS = true; // 設置為 false 可暫時停用所有 Slack 通知
 const GEMINI_MODEL = "gemini-2.0-flash"; // 最新的模型名稱
 
+// LLM API 錯誤通知 Slack 頻道，可自訂，預設為 U71UD64CW
+var SLACK_LLM_ERROR_CHANNEL = typeof SLACK_LLM_ERROR_CHANNEL !== 'undefined' ? SLACK_LLM_ERROR_CHANNEL : "U71UD64CW";
+
 // 導出環境設置以便其他模組使用
 // 注意：在 Apps Script 中，變量和函數自動在全局範圍內共享
 // 此處的導出只是為了明確標記哪些變量是由本模組提供的

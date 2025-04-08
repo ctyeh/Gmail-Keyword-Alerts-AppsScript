@@ -73,3 +73,16 @@ function extractDomainFromSender(senderEmail) {
   
   return emailMatch[1].toLowerCase();
 }
+
+/**
+ * 發送 LLM API 錯誤通知到 Slack
+ * @param {String} errorMessage - 錯誤描述
+ * @param {String} originalResponse - API 原始回應內容
+ */
+function notifyLlmErrorToSlack(errorMessage, originalResponse) {
+  const slackPayload = {
+    channel: SLACK_LLM_ERROR_CHANNEL,
+    text: `🚨 *LLM API 發生錯誤*\n*錯誤訊息:* ${errorMessage}\n*原始回應:*\n\`\`\`${originalResponse}\`\`\``
+  };
+  sendToSlack(slackPayload);
+}

@@ -127,6 +127,7 @@ ${contentToAnalyze}
     // 檢查響應狀態
     if (responseCode !== 200) {
       Logger.log(`API返回錯誤狀態碼: ${responseCode}, 響應內容: ${responseText} - 寄件者: ${from}, 主旨: ${subject}`);
+      notifyLlmErrorToSlack(`狀態碼: ${responseCode}`, responseText);
       return null;
     }
     
@@ -169,6 +170,7 @@ ${contentToAnalyze}
     
   } catch (error) {
     Logger.log(`使用 Gemini API 分析郵件時出錯：${error.toString()} - 寄件者: ${from}, 主旨: ${subject}`);
+    notifyLlmErrorToSlack(error.toString(), "");
     return null;
   }
 }
@@ -291,6 +293,7 @@ function generateDailySummaryWithGemini(stats) {
     // 檢查響應狀態
     if (responseCode !== 200) {
       Logger.log(`API返回錯誤狀態碼: ${responseCode}, 響應內容: ${responseText}`);
+      notifyLlmErrorToSlack(`狀態碼: ${responseCode}`, responseText);
       return "AI 無法生成分析（API 錯誤）。";
     }
     
@@ -308,6 +311,7 @@ function generateDailySummaryWithGemini(stats) {
     
   } catch (error) {
     Logger.log(`生成每日統計摘要時出錯：${error.toString()}`);
+    notifyLlmErrorToSlack(error.toString(), "");
     return "生成AI分析時發生錯誤。";
   }
 }
