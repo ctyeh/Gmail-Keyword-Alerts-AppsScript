@@ -1,4 +1,4 @@
-node_modules/*
+node_modules/
 lib/
 dist/
 backup/
@@ -48,4 +48,4 @@ test/.clasp.json
 test/config.secret.js
 test/dist/
 test/src/Code.js
-common/src/Code.js
+common/src/

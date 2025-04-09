@@ -2,6 +2,10 @@
  * emotionStorage.js
  * 
  * 專責情緒分析資料的儲存、讀取與清理
+ * 
+ * 依賴模組:
+ * - env.js (時區設定)
+ * - utils.js (格式化工具函數)
  */
 
 /**
@@ -101,5 +105,30 @@ function clearOldEmotionData() {
     Logger.log(`已清除 ${clearedCount} 個舊的情緒數據`);
   } catch (error) {
     Logger.log(`清除舊情緒數據錯誤: ${error.toString()}`);
+  }
+}
+
+/**
+ * 清除當天的情緒分析數據
+ * 用於重新分析前，確保數據是最新的
+ */
+function clearTodayEmotionData() {
+  try {
+    const today = new Date();
+    const todayString = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const props = PropertiesService.getScriptProperties().getProperties();
+    let clearedCount = 0;
+    
+    // 遍歷刪除今天的數據
+    for (const key in props) {
+      if (key.startsWith(todayString + "_email_")) {
+        PropertiesService.getScriptProperties().deleteProperty(key);
+        clearedCount++;
+      }
+    }
+    
+    Logger.log(`已清除 ${clearedCount} 個今日情緒數據項目`);
+  } catch (error) {
+    Logger.log(`清除今日情緒數據時出錯：${error.toString()}`);
   }
 }

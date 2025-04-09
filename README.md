@@ -45,16 +45,24 @@ flowchart TD
 
 ```
 /common/            # 主要開發與打包目錄
-  /lib/             # 核心功能庫
-  /modules/         # 功能模組
+  /core/            # 核心 API 模組
+    gemini.js       # Google Gemini API 相關功能
+    gmail.js        # Gmail API 相關功能
+    slack.js        # Slack API 相關功能
+  /modules/         # 業務邏輯模組
+    emailProcessor.js    # 郵件處理邏輯
+    emotionStorage.js    # 情緒分析儲存
+    ignoreRules.js       # 忽略規則邏輯
+    notificationRules.js # 通知規則邏輯
+    searchTools.js       # 郵件搜尋工具
+    triggerSetup.js      # 觸發器設定
+  /lib/             # 打包輸出目錄
   /src/             # 打包後的源碼
   /backup/          # 備份檔案
   env.js            # 環境變數與設定
   esbuild.config.js # 打包設定
-  gmail.js          # Gmail 操作函式
   main.js           # 主程式邏輯
   package.json      # 專案依賴
-  slack.js          # Slack 整合
   statistics.js     # 數據統計功能
   utils.js          # 公用工具函式
   
@@ -106,41 +114,81 @@ sync.sh             # 共用同步腳本
 
 ---
 
-## 初始化流程
+## 模組化架構
 
-1. **環境準備**
-   ```bash
-   # 執行初始化腳本
-   ./init.sh
-   ```
-   此腳本會：
-   - 安裝 `common/` 目錄中的依賴套件
-   - 全域安裝 `clasp` Google Apps Script 命令列工具
-   - 指引設定多帳號環境
+### 核心 API 模組 (`core/`)
 
-2. **帳號設定**
-   ```bash
-   # 在 prod/ 目錄設定正式帳號
-   cd prod
-   clasp login
-   clasp create --title 'Gmail Gemini Slack 正式' --type standalone
-   
-   # 在 test/ 目錄設定測試帳號
-   cd ../test
-   clasp login
-   clasp create --title 'Gmail Gemini Slack 測試' --type standalone
-   ```
+這些模組負責與外部 API 的直接交互，提供底層功能：
 
-3. **環境變數設定**
-   - 在 Google Apps Script 的 Script Properties 中設定：
-     - `SLACK_WEBHOOK_URL`: Slack 的 Webhook URL
-     - `GEMINI_API_KEY`: Google Gemini API 金鑰
+1. **`core/gmail.js`** - Gmail API 核心功能
+   - 郵件標籤操作
+   - 關鍵字檢查
+   - 內容提取
+   - 網域過濾
 
-4. **設定觸發器**
-   - 部署後，在 Google Apps Script 執行 `setUpTrigger()` 函數，設定：
-     - 每 5 分鐘執行一次郵件檢查
-     - 每天下午 5:30 執行統計報告
-     - 每天凌晨清除前一天的情緒數據
+2. **`core/gemini.js`** - Google Gemini AI API 核心功能
+   - 郵件內容情緒分析
+   - 嚴重度評估
+   - 每日統計報告生成
+   - AI API 請求處理
+
+3. **`core/slack.js`** - Slack API 核心功能
+   - 發送郵件通知到 Slack
+   - 發送統計報告
+   - 發送錯誤通知
+
+### 業務邏輯模組 (`modules/`)
+
+這些模組負責特定業務邏輯的實現：
+
+1. **`modules/emailProcessor.js`** - 郵件處理邏輯
+   - 討論串處理
+   - 郵件分析流程
+   - 標籤管理
+
+2. **`modules/emotionStorage.js`** - 情緒分析儲存
+   - 儲存情緒分析結果
+   - 讀取統計數據
+   - 清理舊數據
+
+3. **`modules/ignoreRules.js`** - 忽略規則邏輯
+   - 決定是否忽略特定郵件
+   - 過濾規則管理
+
+4. **`modules/notificationRules.js`** - 通知規則邏輯
+   - 決定是否需要通知
+   - 通知優先級評估
+
+5. **`modules/searchTools.js`** - 郵件搜尋工具
+   - 建立不同類型搜尋查詢
+   - 郵件批次搜尋操作
+   - 重新分析功能
+
+6. **`modules/triggerSetup.js`** - 觸發器設定
+   - 設定自動化觸發器
+   - 管理執行頻率
+
+### 整合與配置檔案
+
+1. **`main.js`** - 主程式邏輯與入口點
+   - 提供主要執行入口點
+   - 整合各模組功能
+   - 高層次流程控制
+
+2. **`env.js`** - 環境變數與配置
+   - 關鍵字列表
+   - API 金鑰管理
+   - 標籤名稱
+   - 忽略網域
+
+3. **`statistics.js`** - 統計報告功能
+   - 收集使用數據
+   - 產生報告
+
+4. **`utils.js`** - 通用工具函數
+   - 日期格式化
+   - 字串處理
+   - 通用輔助功能
 
 ---
 
@@ -177,7 +225,28 @@ sync.sh             # 共用同步腳本
    - 檢查 Google Apps Script 日誌
    - 確認 Slack 通知
 
-### 完整部署流程圖
+### 模組化開發指南
+
+當添加新功能或修改現有功能時，請遵循以下模組化原則：
+
+1. **功能分類**
+   - **API 交互相關**：放入 `core/` 目錄
+   - **業務邏輯相關**：放入 `modules/` 目錄
+   - **配置與環境**：放入 `common/` 根目錄
+
+2. **依賴管理**
+   - 在檔案頂部註釋中明確列出依賴的其他模組
+   - 盡量減少模組間的循環依賴
+
+3. **職責單一**
+   - 每個模組應專注於單一職責
+   - 避免在一個模組中混合多種功能
+
+4. **測試原則**
+   - 重大變更應先在測試環境驗證
+   - 修改 AI 相關功能時，確保測試多種郵件類型
+
+### 部署流程圖
 
 ```mermaid
 sequenceDiagram
@@ -197,44 +266,41 @@ sequenceDiagram
 
 ---
 
-## 各腳本用途詳解
+## 初始化流程
 
-| 腳本名稱 | 功能說明 | 使用時機 |
-|----------|----------|----------|
-| `init.sh` | 初始化專案環境，安裝依賴，指引帳號設定 | 專案首次設定 |
-| `sync.sh` | 共用同步腳本，被其他腳本調用 | 不直接使用 |
-| `sync_test.sh` | 將 `common/` 打包並同步到測試帳號 | 只需同步測試環境 |
-| `sync_prod.sh` | 將 `common/` 打包並同步到正式帳號 | 只需同步正式環境 |
-| `deploy_test.sh` | 同步並部署到測試帳號 | 開發測試階段 |
-| `deploy_all.sh` | 先測試後正式的完整部署流程 | 正式版發布階段 |
+1. **環境準備**
+   ```bash
+   # 執行初始化腳本
+   ./init.sh
+   ```
+   此腳本會：
+   - 安裝 `common/` 目錄中的依賴套件
+   - 全域安裝 `clasp` Google Apps Script 命令列工具
+   - 指引設定多帳號環境
 
----
+2. **帳號設定**
+   ```bash
+   # 在 prod/ 目錄設定正式帳號
+   cd prod
+   clasp login
+   clasp create --title 'Gmail Gemini Slack 正式' --type standalone
+   
+   # 在 test/ 目錄設定測試帳號
+   cd ../test
+   clasp login
+   clasp create --title 'Gmail Gemini Slack 測試' --type standalone
+   ```
 
-## 多帳號管理策略
+3. **環境變數設定**
+   - 在 Google Apps Script 的 Script Properties 中設定：
+     - `SLACK_WEBHOOK_URL`: Slack 的 Webhook URL
+     - `GEMINI_API_KEY`: Google Gemini API 金鑰
 
-### 帳號分離原則
-
-- **測試帳號與正式帳號嚴格分離**
-  - 使用不同的 Google 帳號
-  - 各自獨立的 Google Apps Script 專案
-  - 獨立的觸發器設定
-  - 可設定不同的 Slack Webhook
-
-### 設定方法
-
-1. **目錄結構分離**
-   - `test/` 目錄：測試帳號專案
-   - `prod/` 目錄：正式帳號專案
-   - 各自擁有獨立的 `.clasp.json` 設定
-
-2. **部署流程隔離**
-   - 測試帳號：使用 `deploy_test.sh`
-   - 正式帳號：測試無誤後，使用 `deploy_all.sh`
-
-3. **環境設定分離**
-   - 測試帳號可設定不同的關鍵字集
-   - 可設定不同的 Slack 通知目標
-   - 可獨立調整觸發頻率
+4. **設定觸發器**
+   - 部署後，在 Google Apps Script 執行 `setUpTrigger()` 函數，設定：
+     - 每 5 分鐘執行一次郵件檢查
+     - 每天下午 5:30 執行統計報告
+     - 每天凌晨清除前一天的情緒數據
 
 ---
 
@@ -282,48 +348,36 @@ sequenceDiagram
 - **Q: 如何增加新帳號？**
   - **A:** 建立新資料夾，在其中執行 `clasp login` + `clasp create`，然後參考 `test/` 目錄的設定
 
-- **Q: 可以只同步不部署嗎？**
-  - **A:** 可以，使用 `sync_test.sh` 或 `sync_prod.sh` 只同步代碼
-
-- **Q: 可以只部署正式帳號嗎？**
-  - **A:** 可以，但不建議。如需直接部署正式環境，可手動執行 `sync_prod.sh` 後在 `prod/` 目錄中執行 `clasp push`
-
 ### 功能相關
 
 - **Q: 為什麼某些符合關鍵字的郵件沒有發送通知？**
-  - **A:** 檢查 `ignoreRules.js` 是否包含相關忽略規則，或郵件是否來自排除網域
+  - **A:** 檢查 `modules/ignoreRules.js` 是否包含相關忽略規則，或郵件是否來自排除網域
 
 - **Q: AI 分析結果不準確，如何改善？**
-  - **A:** 調整 `env.js` 中的 `GEMINI_PROMPT` 提示詞，讓 AI 更準確理解您的需求
+  - **A:** 調整 `env.js` 中的 `GEMINI_PROMPT` 提示詞，或修改 `core/gemini.js` 中的分析邏輯
 
 - **Q: 如何增加或修改標籤？**
   - **A:** 修改 `env.js` 中的標籤名稱常數，並確保 Gmail 中有創建相應標籤
-
-- **Q: 如何檢視系統執行日誌？**
-  - **A:** 在 Google Apps Script 編輯器中，點擊「執行」>"檢視」>"日誌」查看執行記錄
-
-### 其他問題
-
-- **Q: 觸發器沒有正常執行怎麼辦？**
-  - **A:** 檢查 Google Apps Script 的觸發器設定，可能需要重新執行 `setUpTrigger()` 函數
-
-- **Q: 如何測試 Slack 通知是否正常？**
-  - **A:** 執行 `checkGmailAndNotifySlack()` 函數，或在測試環境中手動發送測試郵件
-
-- **Q: 統計報告沒有發送怎麼辦？**
-  - **A:** 檢查 `SLACK_WEBHOOK_URL` 設定，手動執行 `dailyStatisticsReport()` 測試
 
 ---
 
 ## 開發者須知
 
-- **所有功能開發都應在 `common/` 目錄進行**
-- **遵循「先測試，後正式」的部署流程**
-- **更新設定後，應執行 `reanalyzeAllTodayEmails()` 確保立即生效**
-- **增加新功能前，請檢查是否會影響現有處理邏輯**
-- **修改 AI 提示詞時，務必測試各種郵件類型的分析結果**
-- **請遵守 Gmail API 使用配額限制，避免過於頻繁的請求**
-- **定期檢查 Google Apps Script 執行日誌了解系統狀況**
+- **模組化開發原則**：
+  - `core/`：用於存放與外部 API 交互的核心功能
+  - `modules/`：用於存放業務邏輯和功能模組
+  - 主目錄：存放配置檔案和整合元素
+
+- **編輯流程**：
+  1. 正確識別功能所屬模組
+  2. 清晰文檔說明依賴關係
+  3. 避免循環依賴
+  4. 保持函數職責單一
+
+- **代碼組織規範**：
+  - 在檔案頂部添加詳盡註釋說明功能和依賴
+  - 保持代碼風格一致性
+  - 適當使用日誌記錄關鍵步驟
 
 ---
 
@@ -342,20 +396,32 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    Main[main.js 主控制] --> Gmail[gmail.js 郵件操作]
-    Main --> Gemini[gemini.js AI分析]
-    Main --> Slack[slack.js 通知]
-    Main --> Stats[statistics.js 統計]
-    Main --> Env[env.js 環境設定]
-    Main --> Utils[utils.js 工具函數]
+    Main[main.js 主控制] --> Core[核心 API 模組]
+    Main --> Modules[業務邏輯模組]
+    Main --> Others[其他配置與工具]
     
-    Gmail --> EP[emailProcessor.js]
-    Gemini --> ES[emotionStorage.js]
-    Main --> IR[ignoreRules.js]
-    Main --> NR[notificationRules.js]
-    Main --> TS[triggerSetup.js]
+    subgraph Core["core/"]
+        Gmail[gmail.js]
+        Gemini[gemini.js]
+        Slack[slack.js]
+    end
+    
+    subgraph Modules["modules/"]
+        EP[emailProcessor.js]
+        ES[emotionStorage.js]
+        IR[ignoreRules.js]
+        NR[notificationRules.js]
+        ST[searchTools.js]
+        TS[triggerSetup.js]
+    end
+    
+    subgraph Others["common/"]
+        Env[env.js]
+        Utils[utils.js]
+        Stats[statistics.js]
+    end
 ```
 
 ---
 
-*此文件最後更新於 2025年4月8日*
+*此文件最後更新於 2025年4月9日*

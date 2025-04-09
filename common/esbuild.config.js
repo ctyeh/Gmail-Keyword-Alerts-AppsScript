@@ -1,7 +1,7 @@
 const esbuild = require('esbuild');
 
 esbuild.build({
-  entryPoints: ['lib/main.js'],
+  entryPoints: ['main.js'],  // 更改為直接使用根目錄 main.js 作為入口點
   bundle: true,
   outfile: 'dist/bundle.js',
   format: 'iife',
