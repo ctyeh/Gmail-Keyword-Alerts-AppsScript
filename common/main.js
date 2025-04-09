@@ -8,10 +8,15 @@
  * 
  * 依賴模組:
  * - env.js (所有常數)
- * - gmail.js (hasLabel, addLabel, isFromExcludedDomain, checkKeywords, extractActualContent, isForwardedEmail)
- * - gemini.js (analyzeEmailWithGemini, logEmailAnalysisResult, storeEmotionAnalysisResult)
- * - slack.js (sendNotification)
- * - statistics.js (dailyStatisticsReport)
+ * - gmail.js (搜尋和標籤操作)
+ * - modules/emailProcessor.js (郵件處理)
+ * - modules/gemini.js (AI 分析)
+ * - modules/emotionStorage.js (情緒分析儲存)
+ * - modules/ignoreRules.js (忽略規則)
+ * - modules/notificationRules.js (通知規則)
+ * - modules/triggerSetup.js (觸發器設定)
+ * - slack.js (Slack通知)
+ * - statistics.js (統計報告)
  * - utils.js (通用工具函數)
  */
 
@@ -54,262 +59,12 @@ function checkGmailAndNotifySlack() {
     return;
   }
 
-  // 調用模組
+  // 調用模組化的討論串處理函數
   const stats = processThreads(allNewThreads);
   
   Logger.log(`執行完畢 - 統計資訊：總共掃描 ${stats.totalThreads} 個討論串，包含 ${stats.totalMessages} 封郵件，` +
              `其中 ${stats.alreadyProcessed} 封已處理（跳過），實際處理了 ${stats.newlyProcessed} 封新郵件，` +
              `發送了 ${stats.notificationsSent} 個通知`);
-}
-
-/**
- * 處理郵件討論串
- * 
- * @param {Array<GmailThread>} threads - Gmail 討論串陣列
- * @return {Object} 處理統計資訊
- */
-function processThreads(threads) {
-  // 統計資訊
-  const stats = {
-    totalThreads: threads.length,
-    totalMessages: 0,
-    alreadyProcessed: 0,
-    newlyProcessed: 0,
-    notificationsSent: 0
-  };
-  
-  for (const thread of threads) {
-    const messages = thread.getMessages();
-    const subject = thread.getFirstMessageSubject();
-    
-    Logger.log(`處理討論串：${subject}，包含 ${messages.length} 封郵件`);
-    stats.totalMessages += messages.length;
-    
-    let threadStats = {
-      processed: 0,
-      skipped: 0
-    };
-    
-    for (const message of messages) {
-      // 檢查郵件是否已經被處理過
-      if (!hasLabel(message, CHECKED_LABEL)) {
-        threadStats.processed++;
-        stats.newlyProcessed++;
-        const notificationSent = processMessage(message, subject);
-        if (notificationSent) {
-          stats.notificationsSent++;
-        }
-      } else {
-        threadStats.skipped++;
-        stats.alreadyProcessed++;
-        //Logger.log(`跳過已處理郵件：寄件者 ${message.getFrom()}，主旨：${subject}`);
-      }
-    }
-    
-    Logger.log(`討論串處理完成：${subject}，處理了 ${threadStats.processed} 封新郵件，跳過了 ${threadStats.skipped} 封已處理郵件`);
-  }
-  
-  return stats;
-}
-
-/**
- * 處理單個郵件
- * 
- * @param {GmailMessage} message - Gmail 郵件對象
- * @param {String} subject - 郵件主旨
- * @return {Boolean} 是否發送了通知
- */
-function processMessage(message, subject) {
-  let notificationSent = false;
-  const from = message.getFrom();
-  const date = message.getDate();
-  const body = message.getPlainBody();
-  const link = `https://mail.google.com/mail/u/0/#inbox/${message.getId()}`;
-
-  // 預先宣告忽略條件變數
-  let isMailgunVerification = 
-    from.includes('support@mailgun.net') &&
-    subject.startsWith('Good news -') &&
-    subject.endsWith('is now verified');
-  let containsIdentityVerification = body.includes("申請寄件者身份驗證");
-  let containsSmsKeywords = body.includes("簡訊網域申請") || body.includes("簡訊白名單申請");
-
-  // === 完全忽略三類信件，避免標籤、通知、統計、AI分析 ===
-  if (isMailgunVerification || containsIdentityVerification || containsSmsKeywords) {
-    Logger.log(`完全忽略信件（不標籤、不通知、不統計）- 寄件者: ${from}, 主旨: ${subject}`);
-    return false;
-  }
-  
-  // 記錄開始分析的郵件
-  Logger.log(`開始分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
-  
-  // 檢查寄件者是否來自排除的網域
-  const isExcludedDomain = isFromExcludedDomain(from);
-  if (isExcludedDomain) {
-    Logger.log(`郵件來自排除網域: ${from}, 主旨: ${subject}`);
-  }
-  
-  // 檢查是否為轉寄郵件
-  const isForwarded = isForwardedEmail(subject);
-  
-  // 如果是轉寄郵件，加強過濾
-  if (isForwarded) {
-    Logger.log(`檢測到轉寄郵件: ${subject}`);
-    // 如果決定跳過轉寄郵件，取消下面的注釋
-    // return;
-  }
-  
-  // 獲取郵件的實際內容（排除引用部分）
-  const actualBody = extractActualContent(body);
-  
-  // 檢查郵件內容是否包含關鍵字
-  const foundKeywords = checkKeywords(subject, actualBody, isForwarded);
-  if (foundKeywords.length > 0) {
-    Logger.log(`在郵件中發現關鍵字: ${foundKeywords.join(', ')} - 寄件者: ${from}, 主旨: ${subject}`);
-  }
-  
-  // 創建郵件分析結果對象，清晰區分不同檢測類型
-  const emailAnalysis = {
-    keywordsFound: foundKeywords,   // 實際找到的關鍵字
-    aiDetected: false,              // AI 是否檢測到需注意內容
-    aiAnalysisResult: null          // 完整的 AI 分析結果
-  };
-  
-  if (USE_GEMINI_API) {
-    Logger.log(`開始使用 Gemini 分析郵件 - 寄件者: ${from}, 主旨: ${subject}`);
-    emailAnalysis.aiAnalysisResult = analyzeEmailWithGemini(subject, actualBody, from);
-    
-    // 將情緒分析結果存儲到 Properties 服務
-    if (emailAnalysis.aiAnalysisResult) {
-      storeEmotionAnalysisResult(message, emailAnalysis.aiAnalysisResult);
-      
-      // 統一判斷標準：若problemDetected為true，則shouldNotify也應為true
-      if (emailAnalysis.aiAnalysisResult.problemDetected && !emailAnalysis.aiAnalysisResult.shouldNotify) {
-        Logger.log(`發現不一致判斷：problemDetected=true 但 shouldNotify=false，強制設置shouldNotify=true - 寄件者: ${from}, 主旨: ${subject}`);
-        emailAnalysis.aiAnalysisResult.shouldNotify = true;
-      }
-      
-      // 標記 AI 是否檢測到需注意的內容
-      if (emailAnalysis.aiAnalysisResult.shouldNotify) {
-        emailAnalysis.aiDetected = true;
-        Logger.log(`Gemini AI 檢測到需注意內容 - 寄件者: ${from}, 主旨: ${subject}`);
-      }
-    } else {
-      Logger.log(`AI分析未返回結果，郵件將不被標記為AI建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
-    }
-  } else {
-    Logger.log(`USE_GEMINI_API設置為false，跳過AI分析 - 寄件者: ${from}, 主旨: ${subject}`);
-  }
-  
-  // 記錄郵件分析結果到日誌
-  logEmailAnalysisResult(message, subject, from, foundKeywords, emailAnalysis.aiAnalysisResult);
-  
-  // 處理標籤和通知
-  
-  // 標記為已檢查（所有經過分析的郵件都會被標記）
-  addLabel(message, CHECKED_LABEL);
-  
-  // 檢查是否符合關鍵字，標記並嘗試發送通知
-  if (emailAnalysis.keywordsFound.length > 0) {
-    // 標記為「關鍵字符合」
-    addLabel(message, KEYWORD_LABEL);
-    Logger.log(`郵件標記為關鍵字符合 - 寄件者: ${from}, 主旨: ${subject}`);
-    
-    // 檢查是否為活動廣告或包含「申請寄件者身份驗證」關鍵字，如果是則不發送通知
-    const containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
-    const isPromotional = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.isPromotional === true;
-    
-    if (isMailgunVerification) {
-      Logger.log(`忽略 Mailgun 域名驗證成功通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-
-    if (containsIdentityVerification) {
-      Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-    
-    if (isPromotional) {
-      Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-  }
-  
-  // 檢查 AI 是否檢測到需注意內容，標記
-  if (emailAnalysis.aiDetected) {
-    // 只有非排除網域的郵件才添加「AI 建議注意」標籤
-    if (!isExcludedDomain) {
-      // 標記為「AI 建議注意」
-      addLabel(message, AI_ALERT_LABEL);
-      Logger.log(`郵件標記為 AI 建議注意 - 寄件者: ${from}, 主旨: ${subject}`);
-    } else {
-      Logger.log(`郵件被 AI 檢測為需注意，但來自排除網域，不添加標籤 - 寄件者: ${from}, 主旨: ${subject}`);
-    }
-    
-    // 檢查是否為活動廣告或包含關鍵字，如果是則不發送通知
-    const containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
-    const isPromotional = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.isPromotional === true;
-    
-    // 檢查是否包含「簡訊網域申請」或「簡訊白名單申請」關鍵字
-    const containsSmsKeywords = actualBody.includes("簡訊網域申請") || actualBody.includes("簡訊白名單申請");
-    
-    if (containsIdentityVerification) {
-      Logger.log(`郵件包含「申請寄件者身份驗證」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-    
-    if (containsSmsKeywords) {
-      Logger.log(`郵件包含「簡訊網域申請」或「簡訊白名單申請」關鍵字，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-    
-    if (isPromotional) {
-      Logger.log(`郵件被 AI 判定為活動廣告，排除發送通知 - 寄件者: ${from}, 主旨: ${subject}`);
-      return false; // 跳過通知發送
-    }
-  }
-  
-  // 決定是否發送通知（有關鍵字或AI檢測）
-  let shouldNotify = emailAnalysis.keywordsFound.length > 0 || emailAnalysis.aiDetected;
-
-  // 強制忽略身份驗證、白名單、Mailgun 驗證信，即使 AI 判定有問題也不通知
-    isMailgunVerification = 
-      from.includes('support@mailgun.net') &&
-      subject.startsWith('Good news -') &&
-      subject.endsWith('is now verified');
-    containsIdentityVerification = emailAnalysis.keywordsFound.includes("申請寄件者身份驗證");
-    containsSmsKeywords = actualBody.includes("簡訊網域申請") || actualBody.includes("簡訊白名單申請");
-
-    const shouldForceIgnore = isMailgunVerification || containsIdentityVerification || containsSmsKeywords;
-
-    if (shouldForceIgnore) {
-      Logger.log(`忽略信件（即使 AI 判定有問題）- 寄件者: ${from}, 主旨: ${subject}`);
-      return false;
-    }
-  
-  // 發送通知
-  if (shouldNotify) {
-    try {
-      // 發送完整的分析結果對象，而不是修改關鍵字陣列
-      sendNotification(subject, from, date, body, actualBody, link, emailAnalysis, message);
-      Logger.log(`已發送通知到 Slack - 寄件者: ${from}, 主旨: ${subject}`);
-      notificationSent = true;
-    } catch (error) {
-      Logger.log(`發送通知到 Slack 失敗 - 寄件者: ${from}, 主旨: ${subject}, 錯誤: ${error.toString()}`);
-    }
-  } else {
-    Logger.log(`郵件分析完成，未發現需通知的內容 - 寄件者: ${from}, 主旨: ${subject}`);
-  }
-  
-  // 記錄郵件處理決策的摘要
-  Logger.log(`處理摘要 - 郵件ID: ${message.getId()}, 寄件者: ${from}, 主旨: ${subject}` + 
-             `, 關鍵字匹配: ${emailAnalysis.keywordsFound.length > 0}` +
-             `, AI檢測: ${emailAnalysis.aiDetected}` + 
-             `, 發送通知: ${notificationSent}` +
-             `, 排除網域: ${isExcludedDomain}` +
-             `, 轉寄郵件: ${isForwarded}`);
-             
-  return notificationSent;
 }
 
 /**
@@ -486,5 +241,14 @@ function howToUse() {
      - 排除網域
      - 標籤名稱
      - Gemini API 設定
+   
+5. 嚴重程度評估:
+   - 系統現在會對 AI 判定為需注意的郵件進行嚴重程度評估
+   - 可能的嚴重程度級別:
+     - low: 低程度嚴重 (僅標記，不通知)
+     - medium: 中度嚴重 (僅標記，不通知)
+     - high: 高度嚴重 (標記並通知)
+     - urgent: 緊急 (標記並通知)
+   - 只有 high 和 urgent 級別的郵件會發送 Slack 通知
   `);
 }

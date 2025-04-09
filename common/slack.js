@@ -132,6 +132,22 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, email
       "inquiring": "詢問",
       "informative": "提供信息"
     };
+
+    // 嚴重程度對照表
+    const severityMap = {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "緊急"
+    };
+
+    // 嚴重程度圖標
+    const severityIcons = {
+      "low": "🟢",
+      "medium": "🟡",
+      "high": "🟠",
+      "urgent": "🔴"
+    };
     
     // 取得情緒類型並轉換為繁體中文
     const mainEmotion = emailAnalysis.aiAnalysisResult.primarySentiment || emailAnalysis.aiAnalysisResult.sentiment || "unknown";
@@ -155,13 +171,22 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, email
       const detailedEmotionChinese = detailedEmotionMap[emailAnalysis.aiAnalysisResult.detailedEmotion] || emailAnalysis.aiAnalysisResult.detailedEmotion;
       detailedEmotionText = `\n> *詳細情緒：* ${detailedIcon} ${detailedEmotionChinese}`;
     }
+
+    // 顯示嚴重程度
+    let severityText = "";
+    if (emailAnalysis.aiAnalysisResult.severity) {
+      const severity = emailAnalysis.aiAnalysisResult.severity;
+      const severityIcon = severityIcons[severity] || "❓";
+      const severityChinese = severityMap[severity] || severity;
+      severityText = `\n> *嚴重程度：* ${severityIcon} ${severityChinese}`;
+    }
     
     // 使用不同的樣式凸顯 AI 評估結果
     slackMessage.blocks.push({
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotionText}${detailedEmotionText}\n> *問題檢測：* ${emailAnalysis.aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${emailAnalysis.aiAnalysisResult.summary}`
+        "text": `*🤖 AI評估結果：*\n> *情緒：* ${emotionIcon} ${mainEmotionText}${detailedEmotionText}${severityText}\n> *問題檢測：* ${emailAnalysis.aiAnalysisResult.problemDetected ? "⚠️ 是" : "✅ 否"}\n> *摘要：* ${emailAnalysis.aiAnalysisResult.summary}`
       }
     });
   }
@@ -196,7 +221,10 @@ function sendNotification(subject, from, date, fullBody, actualBody, link, email
     const notificationContent = emailAnalysis.keywordsFound.length > 0 
       ? `包含關鍵字「${emailAnalysis.keywordsFound.join(', ')}」` 
       : `由 AI 檢測觸發`;
-    Logger.log(`發送通知成功：「${subject}」${notificationContent} - 寄件者: ${from}`);
+    const severityInfo = emailAnalysis.aiAnalysisResult && emailAnalysis.aiAnalysisResult.severity 
+      ? ` (嚴重程度: ${emailAnalysis.aiAnalysisResult.severity})` 
+      : '';
+    Logger.log(`發送通知成功：「${subject}」${notificationContent}${severityInfo} - 寄件者: ${from}`);
   } else {
     Logger.log(`發送通知失敗：「${subject}」- 寄件者: ${from}`);
   }

@@ -23,6 +23,12 @@ function shouldIgnore(message, subject, body) {
 
   const containsIdentityVerification = body.includes("申請寄件者身份驗證");
   const containsSmsKeywords = body.includes("簡訊網域申請") || body.includes("簡訊白名單申請");
+  
+  // 判斷是否為電子豹客服回信
+  const isNewsLeopardCustomerService = 
+    (from.includes('service@newsleopard.com') || from.includes('service@newsleopard.tw')) &&
+    (subject.includes('電子豹客服') || subject.includes('NewsLeopard 客服') || 
+     subject.includes('電子豹支援') || subject.includes('NewsLeopard 支援'));
 
-  return isMailgunVerification || containsIdentityVerification || containsSmsKeywords;
+  return isMailgunVerification || containsIdentityVerification || containsSmsKeywords || isNewsLeopardCustomerService;
 }
