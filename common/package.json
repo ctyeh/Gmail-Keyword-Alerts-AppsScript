@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Gmail + Gemini + Slack Google Apps Script",
   "scripts": {
-    "babel": "babel ./modules ./main.js ./env.js ./gmail.js ./slack.js ./statistics.js ./utils.js --out-dir lib --extensions \".js\" --copy-files",
+    "babel": "babel ./core ./modules ./main.js ./env.js ./statistics.js ./utils.js ./modules.js --out-dir lib --extensions \".js\" --copy-files",
     "build": "npm run babel && node esbuild.config.js",
     "copy": "cp dist/bundle.js src/Code.js",
     "deploy": "npm run build && npm run copy && clasp push"

@@ -9,7 +9,7 @@ esbuild.build({
     js: 'var global = this;'
   },
   charset: 'utf8',
-  target: ['es5'],
+  // 移除 ES5 目標設定，使用預設的更現代的目標
   logLevel: 'info',
   treeShaking: false,
 }).catch(() => process.exit(1));
