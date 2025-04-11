@@ -31,7 +31,16 @@ function shouldIgnore(message, subject, body) {
     subject.endsWith('is now verified');
 
   const containsIdentityVerification = body.includes("申請寄件者身份驗證");
-  const containsSmsKeywords = body.includes("簡訊網域申請") || body.includes("簡訊白名單申請");
+  
+  // 擴展簡訊和白名單相關關鍵字檢測
+  const containsSmsKeywords = 
+    body.includes("簡訊網域申請") || 
+    body.includes("簡訊白名單申請") ||
+    body.includes("申請白名單") ||
+    body.includes("白名單申請") ||
+    subject.includes("申請白名單") ||
+    subject.includes("白名單問題") ||
+    subject.includes("白名單申請");
   
   // 判斷是否為電子豹客服回信 - 放寬條件
   const isNewsLeopardCustomerService = 
