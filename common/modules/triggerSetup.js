@@ -8,9 +8,10 @@
  */
 
 /**
- * 設定自動觸發器
+ * 內部使用的觸發器設定函數，用於避免遞迴呼叫問題
+ * 此函數將被映射到 triggerSetup.setUpTrigger
  */
-function setUpTrigger() {
+function _INTERNAL_MODULE_SETUP_TRIGGER() {
   // 清除所有現有的觸發器
   const triggers = ScriptApp.getProjectTriggers();
   for (let i = 0; i < triggers.length; i++) {
@@ -44,4 +45,12 @@ function setUpTrigger() {
   Logger.log('已設定每天凌晨0:15清除前一天情緒數據的觸發器');
   
   Logger.log('所有觸發器設定完成');
+}
+
+/**
+ * 保持原有的 setUpTrigger 函數，但裡面的內容被移到了 _INTERNAL_MODULE_SETUP_TRIGGER
+ * 這麼做是為了保持與既有程式碼的兼容性
+ */
+function setUpTrigger() {
+  _INTERNAL_MODULE_SETUP_TRIGGER();
 }

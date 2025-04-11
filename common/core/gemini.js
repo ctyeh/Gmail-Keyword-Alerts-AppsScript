@@ -13,6 +13,47 @@
  * - utils.js (truncateBody)
  */
 
+// 新增 API 請求速率控制全局變數
+const GEMINI_API_RATE_LIMIT = 3; // 每秒最大請求數
+const GEMINI_REQUEST_QUEUE = []; // 請求時間戳記錄
+const GEMINI_REQUEST_INTERVAL_MS = 1000 / GEMINI_API_RATE_LIMIT; // 請求間隔毫秒數
+
+/**
+ * 檢查 API 請求速率並進行必要的延遲
+ * 
+ * @return {Number} 延遲的毫秒數，如果無需延遲則為 0
+ */
+function checkAndApplyRateLimit() {
+  const now = new Date().getTime();
+  
+  // 清理超過 1 秒的舊請求記錄
+  while (GEMINI_REQUEST_QUEUE.length > 0 && now - GEMINI_REQUEST_QUEUE[0] > 1000) {
+    GEMINI_REQUEST_QUEUE.shift();
+  }
+  
+  // 如果最近 1 秒內的請求數已達到速率限制
+  if (GEMINI_REQUEST_QUEUE.length >= GEMINI_API_RATE_LIMIT) {
+    // 計算需要等待的時間
+    const oldestTimestamp = GEMINI_REQUEST_QUEUE[0];
+    const waitTime = 1000 - (now - oldestTimestamp);
+    
+    // 如果需要等待
+    if (waitTime > 0) {
+      Logger.log(`API 速率控制：等待 ${waitTime}ms 以符合速率限制（每秒 ${GEMINI_API_RATE_LIMIT} 次）`);
+      Utilities.sleep(waitTime);
+      
+      // 更新當前時間
+      const newNow = new Date().getTime();
+      GEMINI_REQUEST_QUEUE.push(newNow);
+      return waitTime;
+    }
+  }
+  
+  // 記錄這次請求的時間
+  GEMINI_REQUEST_QUEUE.push(now);
+  return 0;
+}
+
 /**
  * 使用 Gemini API 分析郵件內容
  * 
@@ -102,6 +143,9 @@ ${contentToAnalyze}
 }
 `;
 
+    // 應用 API 速率限制
+    checkAndApplyRateLimit();
+    
     // 呼叫 Gemini API - 使用最新的 API 版本和端點
     const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
     const payload = {
@@ -277,6 +321,9 @@ function generateDailySummaryWithGemini(stats) {
 
 請提供簡短的分析和見解，重點關注任何異常或趨勢。整體保持在100字以內。回傳純文字，不要使用JSON格式。
 `;
+    
+    // 應用 API 速率限制
+    checkAndApplyRateLimit();
     
     // 呼叫 Gemini API
     const apiEndpoint = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;

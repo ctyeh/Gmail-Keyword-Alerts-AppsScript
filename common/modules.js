@@ -58,7 +58,14 @@ this.triggerSetup = {}; // 觸發器設定
     mapFunctionsToNamespace('buildTodayOnlyQuery', this.searchTools);
     mapFunctionsToNamespace('reanalyzeAllTodayEmails', this.searchTools);
     
-    mapFunctionsToNamespace('setUpTrigger', this.triggerSetup);
+    // 注意：避免將全局的 setUpTrigger 映射到 triggerSetup 命名空間
+    // 因為這會導致無限循環調用，需要直接使用 modules/triggerSetup.js 中定義的函數
+    if (typeof this._INTERNAL_MODULE_SETUP_TRIGGER === 'function') {
+      this.triggerSetup.setUpTrigger = this._INTERNAL_MODULE_SETUP_TRIGGER;
+      Logger.log('已綁定 _INTERNAL_MODULE_SETUP_TRIGGER 到 triggerSetup.setUpTrigger');
+    } else {
+      Logger.log('警告: 未找到模組中的觸發器設置函數，請確保已加載 modules/triggerSetup.js');
+    }
     
     if (typeof Logger !== 'undefined') {
       Logger.log('模組命名空間初始化完成');
@@ -117,7 +124,14 @@ function reinitializeModules() {
       mapFunctionsToNamespace('buildTodayOnlyQuery', this.searchTools);
       mapFunctionsToNamespace('reanalyzeAllTodayEmails', this.searchTools);
       
-      mapFunctionsToNamespace('setUpTrigger', this.triggerSetup);
+      // 注意：避免將全局的 setUpTrigger 映射到 triggerSetup 命名空間
+      // 因為這會導致無限循環調用，需要直接使用 modules/triggerSetup.js 中定義的函數
+      if (typeof this._INTERNAL_MODULE_SETUP_TRIGGER === 'function') {
+        this.triggerSetup.setUpTrigger = this._INTERNAL_MODULE_SETUP_TRIGGER;
+        Logger.log('已重新綁定 _INTERNAL_MODULE_SETUP_TRIGGER 到 triggerSetup.setUpTrigger');
+      } else {
+        Logger.log('警告: 未找到模組中的觸發器設置函數，請確保已加載 modules/triggerSetup.js');
+      }
     }
     
     function mapFunctionsToNamespace(funcName, namespace) {
