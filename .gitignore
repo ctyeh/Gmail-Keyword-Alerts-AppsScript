@@ -49,3 +49,5 @@ test/config.secret.js
 test/dist/
 test/src/Code.js
 common/src/
+prod/Code.js
+test/Code.js

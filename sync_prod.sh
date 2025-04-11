@@ -7,10 +7,7 @@ npm run build
 npm run copy
 cd ..
 
-# 確保 prod 的 src 目錄存在
-mkdir -p prod/src
+# 直接複製產物到 prod 目錄
+cp common/src/Code.js prod/Code.js
 
-# 複製產物
-cp common/src/Code.js prod/src/Code.js
-
-echo "同步到正式環境完成"
+echo "正式環境的程式打包完成"
