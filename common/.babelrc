@@ -1,9 +1,13 @@
 {
   "presets": [
-    ["@babel/preset-env", {
-      "targets": {
-        "ie": "11"
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "esmodules": true
+        },
+        "modules": "commonjs"
       }
-    }]
+    ]
   ]
 }
