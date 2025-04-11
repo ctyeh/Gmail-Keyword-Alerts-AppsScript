@@ -445,17 +445,17 @@ graph TD
     Main[main.js 主控制] --> Core[核心 API 模組]
     Main --> Modules[業務邏輯模組]
     Main --> Others[其他配置與工具]
-    
+
     ModulesJS[modules.js 命名空間管理] -.-> Main
     ModulesJS -.-> Core
     ModulesJS -.-> Modules
-    
+
     subgraph Core["core/"]
         Gmail[gmail.js]
         Gemini[gemini.js]
         Slack[slack.js]
     end
-    
+
     subgraph Modules["modules/"]
         EP[emailProcessor.js]
         ES[emotionStorage.js]
@@ -464,19 +464,19 @@ graph TD
         ST[searchTools.js]
         TS[triggerSetup.js]
     end
-    
+
     subgraph Others["common/"]
         Env[env.js]
         Utils[utils.js]
         Stats[statistics.js]
     end
-    
+
     subgraph Build["打包流程"]
         Babel[Babel 轉譯]
         ESBuild[esbuild 打包]
         Copy[複製到 src/]
-        Deploy[部署 (clasp push)]
-        
+        Deploy[部署 clasp push]
+
         Babel --> ESBuild
         ESBuild --> Copy
         Copy --> Deploy
@@ -512,7 +512,6 @@ Copyright (c) 2025 CT, YEH - Newsleopard Inc.
 ### 主要作者
 
 CT, YEH (ct@newsleopard.tw)  
-COO & CPO at Newsleopard Inc.
 [https://newsleopard.tw](https://newsleopard.tw)
 ---
 
