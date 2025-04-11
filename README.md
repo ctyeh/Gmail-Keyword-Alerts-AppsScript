@@ -218,9 +218,9 @@ sync.sh             # 共用同步腳本
      ```
      ./core ./modules ./main.js ./env.js ./statistics.js ./utils.js ./modules.js --> ./lib/
      ```
-   - **esbuild 打包**: 將所有模組打包為單一檔案
+   - **檔案串接**: 直接讀取原始檔案，按照特定順序（env.js、modules.js、utils.js、core/*.js、modules/*.js、statistics.js、main.js）串接成單一檔案
      ```
-     ./lib/ (以 main.js 為入口) --> ./dist/bundle.js
+     原始 .js 檔案 --> ./dist/bundle.js
      ```
    - **複製**: 將打包結果複製到 src 目錄
      ```
@@ -244,13 +244,24 @@ sync.sh             # 共用同步腳本
    - 部署到測試環境 (使用 clasp push)
 
 5. **正式部署**
+   可以選擇以下兩種方式：
+   
+   a. 分步驟部署（建議用於需要驗證的更新）：
+   ```bash
+   # 1. 先部署到測試環境
+   ./deploy_test.sh
+   # 2. 驗證功能正常後，再部署到正式環境
+   ./sync_prod.sh
+   cd prod && clasp push
+   ```
+   
+   b. 一次性部署（適用於較小或已充分測試的更新）：
    ```bash
    ./deploy_all.sh
    ```
-   此腳本會：
-   - 先執行測試部署
-   - 同步到正式帳號 (`prod/src/Code.js`)
-   - 部署到正式環境 (使用 clasp push)
+   此腳本會連續執行：
+   - 同步並部署到測試帳號
+   - 同步並部署到正式帳號
 
 ### 模組化開發指南
 
