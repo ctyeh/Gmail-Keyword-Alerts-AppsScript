@@ -26,43 +26,39 @@ manual_clasp_login() {
   local env_type="$1"
   local work_dir="$2"
   
-  echo -e "${YELLOW}======= 手動登入 ${env_type} 環境 =======${NC}"
-  echo -e "${YELLOW}請按照以下步驟操作：${NC}"
-  echo -e "${BLUE}1. 請在終端機中執行以下命令：${NC}"
-  echo -e "${GREEN}   cd ${work_dir}${NC}"
-  echo -e "${GREEN}   clasp login${NC}"
-  echo -e "${BLUE}2. 瀏覽器會自動開啟 Google 授權頁面${NC}"
-  echo -e "${BLUE}3. 請使用${env_type}環境的 Google 帳號登入並授權${NC}"
-  echo -e "${BLUE}4. 完成授權後，返回終端機${NC}"
+  echo -e "${YELLOW}======= 登入 ${env_type} 環境 =======${NC}"
+  echo -e "${YELLOW}以下步驟將自動執行：${NC}"
   
-  # 詢問使用者是否已完成登入
-  while true; do
-    read -p "您是否已完成 ${env_type} 環境的登入授權？(y/n) " yn
-    case $yn in
-      [Yy]* )
-        # 驗證登入狀態
-        cd "$work_dir"
-        if clasp login --status &> /dev/null; then
-          echo -e "${GREEN}${env_type}環境登入成功！${NC}"
-          return 0
-        else
-          echo -e "${RED}登入驗證失敗。請確認您已完成授權。${NC}"
-          
-          # 再次詢問是否要繼續
-          read -p "是否再試一次？(y/n) " retry
-          case $retry in
-            [Yy]* ) continue;;
-            * ) return 1;;
-          esac
-        fi
+  # 切換到工作目錄
+  cd "$work_dir"
+  
+  # 自動執行 clasp login 命令
+  echo -e "${GREEN}自動執行 clasp login${NC}"
+  echo -e "${BLUE}瀏覽器將自動開啟 Google 授權頁面${NC}"
+  echo -e "${BLUE}請在瀏覽器中使用${env_type}環境的 Google 帳號登入並授權${NC}"
+  
+  # 執行 clasp login
+  clasp login
+  
+  # 授權後自動檢測登入狀態 (使用 clasp list 命令來測試授權是否有效)
+  if clasp list &> /dev/null; then
+    echo -e "${GREEN}${env_type}環境登入成功！${NC}"
+    return 0
+  else
+    echo -e "${RED}登入驗證失敗。請確認您已完成授權。${NC}"
+    
+    # 詢問是否要再試一次
+    read -p "是否再試一次？(y/n) " retry
+    case $retry in
+      [Yy]* ) 
+        manual_clasp_login "$env_type" "$work_dir"
         ;;
-      [Nn]* )
+      * ) 
         echo -e "${RED}放棄${env_type}環境登入${NC}"
         return 1
         ;;
-      * ) echo -e "${YELLOW}請輸入 y 或 n${NC}";;
     esac
-  done
+  fi
 }
 
 # 確保 ~/.clasprc.json 有適當的權限
@@ -96,9 +92,9 @@ check_credentials() {
     return 1
   fi
   
-  # 嘗試獲取登入狀態
+  # 嘗試獲取登入狀態 (使用無害的 clasp list 命令來測試授權是否有效)
   echo -e "${YELLOW}檢查 clasp 登入狀態...${NC}"
-  if clasp login --status; then
+  if clasp list &> /dev/null; then
     echo -e "${GREEN}clasp 已登入${NC}"
     return 0
   else
