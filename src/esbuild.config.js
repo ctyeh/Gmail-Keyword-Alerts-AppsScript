@@ -16,10 +16,10 @@ function readFileContent(filePath) {
 }
 
 console.log('開始打包 Google Apps Script 文件...');
-const outputFile = path.join(__dirname, 'dist', 'bundle.js');
+const outputFile = path.join(__dirname, 'build', 'bundle', 'bundle.js');
 
 // 確保輸出目錄存在
-const outputDir = path.join(__dirname, 'dist');
+const outputDir = path.join(__dirname, 'build', 'bundle');
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
@@ -29,31 +29,31 @@ let finalCode = '// 在全局範圍定義 global 變數\nvar global = this;\n\n'
 
 // 按照特定順序添加文件，確保依賴性正確
 // 1. 環境變數和常數
-finalCode += '// 環境變數和常數\n' + readFileContent(path.join(__dirname, 'env.js')) + '\n\n';
+finalCode += '// 環境變數和常數\n' + readFileContent(path.join(__dirname, 'source', 'env.js')) + '\n\n';
 
 // 2. 模組命名空間管理
-finalCode += '// 模組命名空間管理\n' + readFileContent(path.join(__dirname, 'modules.js')) + '\n\n';
+finalCode += '// 模組命名空間管理\n' + readFileContent(path.join(__dirname, 'source', 'modules.js')) + '\n\n';
 
 // 3. 通用工具函數
-finalCode += '// 通用工具函數\n' + readFileContent(path.join(__dirname, 'utils.js')) + '\n\n';
+finalCode += '// 通用工具函數\n' + readFileContent(path.join(__dirname, 'source', 'utils.js')) + '\n\n';
 
 // 4. 核心API函數
-const coreFiles = glob.sync(path.join(__dirname, 'core', '*.js'));
+const coreFiles = glob.sync(path.join(__dirname, 'source', 'core', '*.js'));
 for (const file of coreFiles) {
   finalCode += `// ${path.basename(file)}\n` + readFileContent(file) + '\n\n';
 }
 
 // 5. 模組函數
-const moduleFiles = glob.sync(path.join(__dirname, 'modules', '*.js'));
+const moduleFiles = glob.sync(path.join(__dirname, 'source', 'modules', '*.js'));
 for (const file of moduleFiles) {
   finalCode += `// ${path.basename(file)}\n` + readFileContent(file) + '\n\n';
 }
 
 // 6. 統計相關函數
-finalCode += '// 統計相關函數\n' + readFileContent(path.join(__dirname, 'statistics.js')) + '\n\n';
+finalCode += '// 統計相關函數\n' + readFileContent(path.join(__dirname, 'source', 'statistics.js')) + '\n\n';
 
 // 7. 主要入口函數
-finalCode += '// 主要入口函數\n' + readFileContent(path.join(__dirname, 'main.js')) + '\n\n';
+finalCode += '// 主要入口函數\n' + readFileContent(path.join(__dirname, 'source', 'main.js')) + '\n\n';
 
 // 8. 添加全局函數導出
 finalCode += `

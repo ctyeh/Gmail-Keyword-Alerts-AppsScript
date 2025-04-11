@@ -1,8 +1,23 @@
 node_modules/
-lib/
-dist/
 backup/
-src/Code.js
+
+# 新結構產物
+/src/build/babel/
+/src/build/bundle/
+/src/build/output/
+
+# 部署產物
+/deploy/test/Code.js
+/deploy/test/credentials.json
+/deploy/test/token.json
+/deploy/test/.clasp.json
+/deploy/test/config.secret.js
+
+/deploy/prod/Code.js
+/deploy/prod/credentials.json
+/deploy/prod/token.json
+/deploy/prod/.clasp.json
+/deploy/prod/config.secret.js
 
 # IDE 與編輯器相關
 .idea/
@@ -48,8 +63,3 @@ test/.clasp.json
 test/config.secret.js
 test/dist/
 test/src/Code.js
-common/src/
-prod/Code.js
-test/Code.js
-distEnvTest/Code.js
-distEnvProd/Code.js

@@ -5,7 +5,7 @@ set -e
 ./sync_test.sh
 
 # 部署到測試帳號
-cd distEnvTest
+cd deploy/test
 clasp push
 cd ..
 
