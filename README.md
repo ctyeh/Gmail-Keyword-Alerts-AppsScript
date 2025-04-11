@@ -302,13 +302,18 @@ sequenceDiagram
         Dev->>Test: ./deploy_test.sh
         Test->>Test: clasp push
         Note over Test: 功能測試與驗證
-    else 完整部署流程
+    else 分步驟部署 (適合需驗證的更新)
         Dev->>Test: ./deploy_test.sh
         Test->>Test: clasp push
         Note over Test: 功能測試與驗證
         Dev->>Prod: ./sync_prod.sh
         Prod->>Prod: clasp push
         Note over Prod: 正式環境運行
+    else 一次性部署 (適合已充分測試的更新)
+        Dev->>Common: ./deploy_all.sh
+        Common-->>Test: 同步並部署到測試帳號
+        Common-->>Prod: 同步並部署到正式帳號
+        Note over Prod: 測試與正式環境同時更新
     end
 ```
 
