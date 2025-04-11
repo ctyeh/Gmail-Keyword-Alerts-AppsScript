@@ -51,3 +51,5 @@ test/src/Code.js
 common/src/
 prod/Code.js
 test/Code.js
+distEnvTest/Code.js
+distEnvProd/Code.js

@@ -7,7 +7,7 @@ npm run build
 npm run copy
 cd ..
 
-# 直接複製產物到 prod 目錄
-cp common/src/Code.js prod/Code.js
+# 直接複製產物到 distEnvProd 目錄
+cp common/src/Code.js distEnvProd/Code.js
 
 echo "正式環境的程式打包完成"

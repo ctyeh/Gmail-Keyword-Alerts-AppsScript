@@ -10,8 +10,8 @@ NC='\033[0m' # No Color
 
 # 設定根目錄的絕對路徑（腳本所在目錄）
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEST_DIR="${ROOT_DIR}/test"
-PROD_DIR="${ROOT_DIR}/prod"
+TEST_DIR="${ROOT_DIR}/distEnvTest"
+PROD_DIR="${ROOT_DIR}/distEnvProd"
 
 echo -e "${GREEN}工作根目錄: ${ROOT_DIR}${NC}"
 

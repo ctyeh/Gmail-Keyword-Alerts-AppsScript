@@ -7,7 +7,7 @@ npm run build
 npm run copy
 cd ..
 
-# 直接複製產物到 test 目錄
-cp common/src/Code.js test/Code.js
+# 直接複製產物到 distEnvTest 目錄
+cp common/src/Code.js distEnvTest/Code.js
 
 echo "測試環境的程式打包完成"
